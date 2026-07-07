@@ -1,0 +1,146 @@
+import { createRouter, createWebHistory } from 'vue-router'
+
+/**
+ * 路由表 —— 统一在此注册所有页面
+ * 每个模块的页面放到 views/<模块名>/ 下面
+ */
+const routes = [
+  // ── 公共页面 ──
+  {
+    path: '/',
+    name: 'Home',
+    component: () => import('@/views/home/HomePage.vue'),
+    meta: { title: '商品大厅' },
+  },
+  {
+    path: '/login',
+    name: 'Login',
+    component: () => import('@/views/login/LoginPage.vue'),
+    meta: { title: '登录 - 智易校园' },
+  },
+  {
+    path: '/register',
+    name: 'Register',
+    component: () => import('@/views/login/RegisterPage.vue'),
+    meta: { title: '注册 - 智易校园' },
+  },
+
+  // ── 商品相关（模块二 / 三）──
+  {
+    path: '/item/:id',
+    name: 'ItemDetail',
+    component: () => import('@/views/item/ItemDetailPage.vue'),
+    meta: { title: '商品详情' },
+  },
+  {
+    path: '/publish',
+    name: 'PublishItem',
+    component: () => import('@/views/item/PublishItemPage.vue'),
+    meta: { title: '发布商品', requireAuth: true },
+  },
+
+  // ── 用户中心（模块一）──
+  {
+    path: '/user/profile',
+    name: 'UserProfile',
+    component: () => import('@/views/user/UserProfilePage.vue'),
+    meta: { title: '个人中心', requireAuth: true },
+  },
+  {
+    path: '/user/my-items',
+    name: 'MyItems',
+    component: () => import('@/views/user/MyItemsPage.vue'),
+    meta: { title: '我的发布', requireAuth: true },
+  },
+  {
+    path: '/user/my-favorites',
+    name: 'MyFavorites',
+    component: () => import('@/views/user/MyFavoritesPage.vue'),
+    meta: { title: '我的收藏', requireAuth: true },
+  },
+
+  // ── 聊天（模块三）──
+  {
+    path: '/chat',
+    name: 'ChatList',
+    component: () => import('@/views/chat/ChatListPage.vue'),
+    meta: { title: '消息', requireAuth: true },
+  },
+  {
+    path: '/chat/:conversationId',
+    name: 'ChatDetail',
+    component: () => import('@/views/chat/ChatDetailPage.vue'),
+    meta: { title: '对话', requireAuth: true },
+  },
+
+  // ── 钱包 & 订单（模块四）──
+  {
+    path: '/wallet',
+    name: 'Wallet',
+    component: () => import('@/views/wallet/WalletPage.vue'),
+    meta: { title: '我的钱包', requireAuth: true },
+  },
+  {
+    path: '/orders/bought',
+    name: 'OrdersBought',
+    component: () => import('@/views/wallet/OrdersBoughtPage.vue'),
+    meta: { title: '我买的', requireAuth: true },
+  },
+  {
+    path: '/orders/sold',
+    name: 'OrdersSold',
+    component: () => import('@/views/wallet/OrdersSoldPage.vue'),
+    meta: { title: '我卖的', requireAuth: true },
+  },
+
+  // ── 管理后台（模块四）──
+  {
+    path: '/admin/dashboard',
+    name: 'AdminDashboard',
+    component: () => import('@/views/admin/DashboardPage.vue'),
+    meta: { title: '管理后台', requireAuth: true, requireAdmin: true },
+  },
+  {
+    path: '/admin/violations',
+    name: 'AdminViolations',
+    component: () => import('@/views/admin/ViolationsPage.vue'),
+    meta: { title: '违规管理', requireAuth: true, requireAdmin: true },
+  },
+  {
+    path: '/admin/chat',
+    name: 'AdminChat',
+    component: () => import('@/views/admin/ChatPage.vue'),
+    meta: { title: '客服收件箱', requireAuth: true, requireAdmin: true },
+  },
+
+  // ── 兜底：404 ──
+  {
+    path: '/:pathMatch(.*)*',
+    name: 'NotFound',
+    component: () => import('@/views/NotFoundPage.vue'),
+    meta: { title: '404' },
+  },
+]
+
+const router = createRouter({
+  history: createWebHistory(),
+  routes,
+  scrollBehavior: () => ({ top: 0 }),
+})
+
+// ── 全局路由守卫：未登录跳登录，非管理员跳首页 ──
+router.beforeEach((to, from, next) => {
+  const token = localStorage.getItem('token')
+  const role = localStorage.getItem('role')
+
+  if (to.meta.requireAuth && !token) {
+    next('/login')
+  } else if (to.meta.requireAdmin && role !== 'ADMIN') {
+    next('/')
+  } else {
+    document.title = to.meta.title || '智易校园'
+    next()
+  }
+})
+
+export default router
