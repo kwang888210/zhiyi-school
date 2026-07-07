@@ -40,6 +40,22 @@
 
   /* —— z-index 阶梯 —— */
   --z-nav: 50; --z-drop: 40; --z-modal: 60;
+
+  /* —— FRONTEND_GUIDE 约定的通用别名（映射到上方设计令牌，禁止 hardcode）—— */
+  --color-primary: var(--primary);
+  --color-success: var(--green);
+  --color-danger:  var(--primary);   /* 价格/主要强调 → 柿子橙 */
+  --color-warning: var(--yellow);
+  --color-error:   var(--red);
+  --text-primary:  var(--ink);
+  --text-secondary: var(--ink-soft);
+  --bg-page:       var(--paper);
+  --bg-card:       var(--white);
+  --border-color:  var(--ink);
+  --border-radius: var(--r-s);
+  --shadow-card:   var(--shadow-m);
+  --font-sm: 13px; --font-md: 15px; --font-lg: 17px; --font-xl: 20px;
+  --spacing-xs: 4px; --spacing-sm: 8px; --spacing-md: 16px; --spacing-lg: 24px; --spacing-xl: 40px;
 }
 
 /* ============ Reset ============ */

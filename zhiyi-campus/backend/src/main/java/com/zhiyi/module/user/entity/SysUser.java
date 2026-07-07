@@ -16,8 +16,13 @@ public class SysUser {
     private String nickname;
     private String phone;
     private String role;            // USER / ADMIN
-    private String status;          // ACTIVE / BANNED_TEMP / BANNED_PERM
+    private String status;          // ACTIVE / BANNED_TEMP / BANNED_PERM / CANCELLED（已注销）
     private LocalDateTime banUntilTime;
+    /**
+     * Token 失效纪元：签发时间早于此时刻的 JWT 一律拒绝。
+     * 重置密码 / 封禁时更新为当前时间，实现"旧 Token 全部强制下线"
+     */
+    private LocalDateTime tokenInvalidBefore;
     private Integer level;
     private Integer exp;
     private BigDecimal walletBalance;

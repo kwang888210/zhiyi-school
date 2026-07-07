@@ -1,72 +1,100 @@
 <template>
-  <el-container class="layout">
-    <!-- 顶部导航栏 -->
-    <el-header class="layout-header">
-      <div class="header-left">
-        <router-link to="/" class="logo">🎓 智易校园</router-link>
-      </div>
-      <div class="header-right">
-        <template v-if="isLoggedIn()">
-          <el-badge :value="unreadCount" :hidden="!unreadCount">
-            <router-link to="/chat">
-              <el-button type="text">💬 消息</el-button>
+  <div class="layout">
+    <!-- 顶部导航栏（demo 设计：布告栏 topbar） -->
+    <header class="topbar">
+      <div class="topbar__inner">
+        <router-link to="/" class="logo" aria-label="智易校园首页">
+          <span class="logo__mark">智</span>
+          智易<em>校园</em>
+        </router-link>
+
+        <nav class="nav-links" aria-label="主导航">
+          <router-link to="/" :class="{ active: isActive('/') }">交易大厅</router-link>
+          <template v-if="loggedIn">
+            <router-link to="/publish" :class="{ active: isActive('/publish') }">发布闲置</router-link>
+            <router-link to="/chat" :class="{ active: isActive('/chat') }">
+              消息
+              <span v-if="unreadCount > 0" class="dot" :aria-label="`${unreadCount}条未读`">{{ unreadCount }}</span>
             </router-link>
-          </el-badge>
-          <router-link to="/wallet">
-            <el-button type="text">💰 钱包</el-button>
-          </router-link>
-          <router-link to="/publish">
-            <el-button type="primary" size="small">发布</el-button>
-          </router-link>
-          <el-dropdown>
-            <span class="user-dropdown">
-              {{ getNickname() }} <el-icon><ArrowDown /></el-icon>
-            </span>
-            <template #dropdown>
-              <el-dropdown-menu>
-                <el-dropdown-item>
-                  <router-link to="/user/profile">个人中心</router-link>
-                </el-dropdown-item>
-                <el-dropdown-item>
-                  <router-link to="/user/my-items">我的发布</router-link>
-                </el-dropdown-item>
-                <el-dropdown-item v-if="isAdmin()">
-                  <router-link to="/admin/dashboard">管理后台</router-link>
-                </el-dropdown-item>
-                <el-dropdown-item divided @click="handleLogout">退出登录</el-dropdown-item>
-              </el-dropdown-menu>
-            </template>
-          </el-dropdown>
-        </template>
-        <template v-else>
-          <router-link to="/login">
-            <el-button type="text">登录</el-button>
-          </router-link>
-          <router-link to="/register">
-            <el-button type="primary" size="small">注册</el-button>
-          </router-link>
-        </template>
+            <router-link to="/wallet" :class="{ active: isActive('/wallet') }">钱包·订单</router-link>
+            <router-link v-if="admin" to="/admin/dashboard" :class="{ active: isActive('/admin') }">管理后台</router-link>
+          </template>
+        </nav>
+
+        <div class="topbar__user">
+          <template v-if="loggedIn">
+            <router-link to="/publish" class="btn btn--primary btn--sm">
+              <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+              发闲置
+            </router-link>
+            <el-dropdown trigger="click">
+              <span class="user-entry">
+                <UserAvatar :nickname="nickname" :user-id="userId" size="s" />
+              </span>
+              <template #dropdown>
+                <el-dropdown-menu>
+                  <el-dropdown-item @click="go('/user/profile')">个人中心</el-dropdown-item>
+                  <el-dropdown-item @click="go('/user/my-items')">我的发布</el-dropdown-item>
+                  <el-dropdown-item @click="go('/user/my-favorites')">我的收藏</el-dropdown-item>
+                  <el-dropdown-item v-if="admin" divided @click="go('/admin/dashboard')">管理后台</el-dropdown-item>
+                  <el-dropdown-item divided @click="handleLogout">退出登录</el-dropdown-item>
+                </el-dropdown-menu>
+              </template>
+            </el-dropdown>
+          </template>
+          <template v-else>
+            <router-link to="/login" class="btn btn--ghost btn--sm">登录</router-link>
+            <router-link to="/register" class="btn btn--primary btn--sm">注册</router-link>
+          </template>
+        </div>
       </div>
-    </el-header>
+    </header>
 
     <!-- 页面内容 -->
-    <el-main class="layout-main">
+    <main class="layout-main">
       <slot />
-    </el-main>
-  </el-container>
+    </main>
+
+    <!-- 页脚（demo 设计） -->
+    <footer class="footer">
+      <div class="footer__inner">
+        <span>智易校园 · AI 辅助审核与闭环生态的校园交易平台</span>
+        <span><router-link to="/chat">联系客服</router-link> · <router-link to="/">回到大厅</router-link></span>
+      </div>
+    </footer>
+  </div>
 </template>
 
 <script setup>
-import { isLoggedIn, isAdmin, getNickname, clearAuth } from '@/utils/auth'
-import { useRouter } from 'vue-router'
+import { computed } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
+import { isLoggedIn, isAdmin, getNickname, getUserId } from '@/utils/auth'
+import { useUserStore } from '@/stores/user'
+import UserAvatar from '@/components/common/UserAvatar.vue'
 
+const route = useRoute()
 const router = useRouter()
+const userStore = useUserStore()
 
-// 未读消息数（后续接入真实接口）
+const loggedIn = computed(() => isLoggedIn())
+const admin = computed(() => isAdmin())
+const nickname = computed(() => userStore.user?.nickname || getNickname() || '?')
+const userId = computed(() => userStore.user?.id || getUserId() || 0)
+
+// 未读消息数（C 模块聊天接口就绪后接入轮询）
 const unreadCount = 0
 
+function isActive(prefix) {
+  if (prefix === '/') return route.path === '/'
+  return route.path.startsWith(prefix)
+}
+
+function go(path) {
+  router.push(path)
+}
+
 function handleLogout() {
-  clearAuth()
+  userStore.logout()
   router.push('/login')
 }
 </script>
@@ -74,51 +102,26 @@ function handleLogout() {
 <style scoped>
 .layout {
   min-height: 100vh;
+  display: flex;
   flex-direction: column;
 }
 
-.layout-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  height: 60px;
-  background: #fff;
-  border-bottom: 1px solid var(--border-color);
-  padding: 0 var(--spacing-lg);
-  position: sticky;
-  top: 0;
-  z-index: 100;
-}
-
-.logo {
-  font-size: var(--font-xl);
-  font-weight: 700;
-  color: var(--color-primary);
-  text-decoration: none;
-}
-
-.header-right {
-  display: flex;
-  align-items: center;
-  gap: var(--spacing-md);
-}
-
-.user-dropdown {
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  gap: 4px;
-}
-
 .layout-main {
+  flex: 1;
   max-width: 1200px;
   width: 100%;
   margin: 0 auto;
-  padding: var(--spacing-md);
+  padding: var(--spacing-lg) 20px;
 }
 
-a {
-  text-decoration: none;
-  color: inherit;
+.user-entry {
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  outline: none;
+}
+
+.footer {
+  margin-top: var(--spacing-xl);
 }
 </style>

@@ -128,13 +128,13 @@ const router = createRouter({
   scrollBehavior: () => ({ top: 0 }),
 })
 
-// ── 全局路由守卫：未登录跳登录，非管理员跳首页 ──
+// ── 全局路由守卫：未登录跳登录（记住来路），非管理员跳首页 ──
 router.beforeEach((to, from, next) => {
   const token = localStorage.getItem('token')
   const role = localStorage.getItem('role')
 
   if (to.meta.requireAuth && !token) {
-    next('/login')
+    next({ path: '/login', query: { redirect: to.fullPath } })
   } else if (to.meta.requireAdmin && role !== 'ADMIN') {
     next('/')
   } else {

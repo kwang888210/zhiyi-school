@@ -1,6 +1,7 @@
 package com.zhiyi.config;
 
 import com.zhiyi.interceptor.JwtInterceptor;
+import com.zhiyi.interceptor.RoleInterceptor;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.web.servlet.config.annotation.CorsRegistry;
 import org.springframework.web.servlet.config.annotation.InterceptorRegistry;
@@ -11,9 +12,11 @@ import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 public class WebMvcConfig implements WebMvcConfigurer {
 
     private final JwtInterceptor jwtInterceptor;
+    private final RoleInterceptor roleInterceptor;
 
-    public WebMvcConfig(JwtInterceptor jwtInterceptor) {
+    public WebMvcConfig(JwtInterceptor jwtInterceptor, RoleInterceptor roleInterceptor) {
         this.jwtInterceptor = jwtInterceptor;
+        this.roleInterceptor = roleInterceptor;
     }
 
     /**
@@ -29,7 +32,7 @@ public class WebMvcConfig implements WebMvcConfigurer {
     }
 
     /**
-     * JWT 拦截器
+     * JWT 拦截器 + 角色拦截器（顺序：先登录校验，后角色校验）
      */
     @Override
     public void addInterceptors(InterceptorRegistry registry) {
@@ -39,13 +42,17 @@ public class WebMvcConfig implements WebMvcConfigurer {
                         "/api/auth/register",                     // 注册
                         "/api/auth/login",                        // 登录
                         "/api/auth/security-question",            // 获取密保问题
+                        "/api/auth/security-questions",           // 预设密保问题列表
                         "/api/auth/reset-password",               // 重置密码
                         "/api/item/list",                         // 商品大厅
                         "/api/item/search",                       // 商品搜索
                         "/api/item/ranking",                      // 排行榜
                         "/api/item/{id:\\d+}",                    // 商品详情（GET）
                         "/api/category/list"                      // 分类列表
-                );
+                ).order(0);
+        registry.addInterceptor(roleInterceptor)
+                .addPathPatterns("/api/**")
+                .order(1);
     }
 
     /**

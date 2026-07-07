@@ -30,8 +30,9 @@ CREATE TABLE sys_user (
     nickname        VARCHAR(50)     NOT NULL                 COMMENT '昵称',
     phone           VARCHAR(20)     DEFAULT NULL             COMMENT '手机号',
     role            VARCHAR(20)     NOT NULL DEFAULT 'USER'  COMMENT '角色：USER/ADMIN',
-    status          VARCHAR(20)     NOT NULL DEFAULT 'ACTIVE' COMMENT '状态：ACTIVE/BANNED_TEMP/BANNED_PERM',
+    status          VARCHAR(20)     NOT NULL DEFAULT 'ACTIVE' COMMENT '状态：ACTIVE/BANNED_TEMP/BANNED_PERM/CANCELLED（已注销）',
     ban_until_time  DATETIME        DEFAULT NULL             COMMENT '封禁截止时间（临时封禁）',
+    token_invalid_before DATETIME   DEFAULT NULL             COMMENT 'Token失效纪元：早于此时刻签发的JWT一律拒绝（改密/封禁时更新，实现强制下线）',
     level           INT             NOT NULL DEFAULT 1       COMMENT '用户等级',
     exp             INT             NOT NULL DEFAULT 0       COMMENT '累计经验值',
     wallet_balance  DECIMAL(10,2)   NOT NULL DEFAULT 0.00    COMMENT '钱包余额',
@@ -228,19 +229,35 @@ CREATE TABLE violation_log (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='违规处罚日志表';
 
 
+-- -----------------------------------------------------------
+-- 2.10 exp_log — 经验值变动记录表（模块一成长体系）
+-- -----------------------------------------------------------
+CREATE TABLE exp_log (
+    id          BIGINT          NOT NULL AUTO_INCREMENT  COMMENT '记录ID',
+    user_id     BIGINT          NOT NULL                 COMMENT '用户ID',
+    delta       INT             NOT NULL                 COMMENT '变动量（+50完成订单/-30违规下架）',
+    exp_after   INT             NOT NULL                 COMMENT '变动后累计经验',
+    level_after INT             NOT NULL                 COMMENT '变动后等级',
+    reason      VARCHAR(255)    NOT NULL                 COMMENT '变动原因',
+    created_at  DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '变动时间',
+
+    PRIMARY KEY (id),
+    INDEX idx_user (user_id),
+    CONSTRAINT fk_exp_user FOREIGN KEY (user_id) REFERENCES sys_user(id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='经验值变动记录表';
+
+
 -- ============================================================
 -- 3. 初始数据
 -- ============================================================
 
 -- -----------------------------------------------------------
--- 3.1 系统管理员（默认密码 admin123，BCrypt 加密）
---     BCrypt($2a$10$...) — 你需要用 Java BCryptPasswordEncoder 生成后替换
---     下面是一个占位，导入后请执行注册逻辑或手动更新密码
+-- 3.1 系统管理员（账号 admin，密码 admin123，密保答案 admin，均为 BCrypt 真实哈希）
 -- -----------------------------------------------------------
 INSERT INTO sys_user (student_id, password, nickname, role, status, level, exp, wallet_balance, security_question, security_answer)
 VALUES (
     'admin',
-    '$2a$10$N.zmdr9k7uOCQb376NoUnuTJ8iAt6Z5EHsM8lE9lBOsl7iAt6Z5Eh',  -- 占位：实际值为 "admin123" 的 BCrypt 哈希
+    '$2a$10$8Jcbe5NyLSowgw.3zOB9bOgoKCpwTuoHWLDAv0robpXmRA10hBngS',  -- "admin123" 的 BCrypt 哈希
     '系统管理员',
     'ADMIN',
     'ACTIVE',
@@ -248,7 +265,7 @@ VALUES (
     0,
     0.00,
     '系统预设问题',
-    '$2a$10$N.zmdr9k7uOCQb376NoUnuTJ8iAt6Z5EHsM8lE9lBOsl7iAt6Z5Eh'  -- 占位
+    '$2a$10$UpZYvV84lq5Ukv7V4X154eYi795.l8klweRTlunpaf6kptgei.TJC'  -- "admin" 的 BCrypt 哈希
 );
 
 -- -----------------------------------------------------------

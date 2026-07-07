@@ -64,6 +64,19 @@ public class JwtUtils {
         }
     }
 
+    /**
+     * 解析 Token；无效/过期返回 null。
+     * 高并发提示：拦截器用它一次解析拿到全部 Claims（userId/role/iat），
+     * 避免 validate + getUserId + getRole 三次重复的签名验证开销。
+     */
+    public Claims parse(String token) {
+        try {
+            return parseClaims(token);
+        } catch (JwtException | IllegalArgumentException e) {
+            return null;
+        }
+    }
+
     private Claims parseClaims(String token) {
         return Jwts.parser()
                 .verifyWith(key)
