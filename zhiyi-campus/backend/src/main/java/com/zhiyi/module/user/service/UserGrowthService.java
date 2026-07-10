@@ -4,11 +4,13 @@ import com.zhiyi.common.BusinessException;
 import com.zhiyi.common.ResultCode;
 import com.zhiyi.module.user.entity.ExpLog;
 import com.zhiyi.module.user.entity.SysUser;
+import com.zhiyi.module.user.event.UserLevelUpEvent;
 import com.zhiyi.module.user.mapper.ExpLogMapper;
 import com.zhiyi.module.user.mapper.SysUserMapper;
 import com.zhiyi.module.user.support.LevelRule;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
@@ -22,7 +24,7 @@ import org.springframework.transaction.annotation.Transactional;
  *
  * 高并发设计：
  * - exp 用单条 UPDATE 原子增减（DB 端 read-modify-write），并发确认收货不丢加分；
- * - 等级结算基于增减后回读的最新 exp，幂等（level 只由 exp 推导）。
+ * - 等级结算基于增减后回读的最新 exp，且只升不降。
  */
 @Slf4j
 @Service
@@ -34,6 +36,7 @@ public class UserGrowthService {
 
     private final SysUserMapper userMapper;
     private final ExpLogMapper expLogMapper;
+    private final ApplicationEventPublisher eventPublisher;
 
     /**
      * 增减经验值并结算等级、记录流水。
@@ -46,24 +49,36 @@ public class UserGrowthService {
             throw new BusinessException(ResultCode.USER_NOT_FOUND);
         }
 
-        // 回读最新 exp（同事务内），由 exp 推导等级 —— 幂等，无并发覆盖问题
-        Integer exp = userMapper.selectExp(userId);
-        int newLevel = LevelRule.levelOf(exp);
+        // 回读最新成长状态，只允许升级；扣经验不会回退已经取得的等级。
+        SysUser state = userMapper.selectGrowthState(userId);
+        if (state == null) {
+            throw new BusinessException(ResultCode.USER_NOT_FOUND);
+        }
+        int expAfter = state.getExp();
+        int oldLevel = state.getLevel();
+        int settledLevel = Math.max(oldLevel, LevelRule.levelOf(expAfter));
 
-        SysUser patch = new SysUser();
-        patch.setId(userId);
-        patch.setLevel(newLevel);
-        userMapper.updateById(patch);
+        if (settledLevel > oldLevel) {
+            SysUser patch = new SysUser();
+            patch.setId(userId);
+            patch.setLevel(settledLevel);
+            userMapper.updateById(patch);
+        }
 
         ExpLog logRow = new ExpLog();
         logRow.setUserId(userId);
         logRow.setDelta(delta);
-        logRow.setExpAfter(exp);
-        logRow.setLevelAfter(newLevel);
+        logRow.setExpAfter(expAfter);
+        logRow.setLevelAfter(settledLevel);
         logRow.setReason(reason);
         expLogMapper.insert(logRow);
 
+        if (settledLevel > oldLevel) {
+            eventPublisher.publishEvent(
+                    new UserLevelUpEvent(userId, oldLevel, settledLevel, expAfter));
+        }
+
         log.info("用户 {} 经验值 {}{}（{}），当前 exp={} level={}",
-                userId, delta > 0 ? "+" : "", delta, reason, exp, newLevel);
+                userId, delta > 0 ? "+" : "", delta, reason, expAfter, settledLevel);
     }
 }

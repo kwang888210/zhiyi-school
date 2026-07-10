@@ -19,8 +19,6 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.LocalDateTime;
-
 /**
  * 模块一：账号安全 —— 修改密码 / 注销账号（个人中心「账号安全」面板）
  */
@@ -38,7 +36,7 @@ public class AccountSecurityService {
 
     /**
      * 修改密码：验证原密码 + 新密码不得与原密码相同。
-     * 成功后推进 Token 失效纪元 —— 所有设备（含当前）强制重新登录。
+     * 成功后推进 Token 版本 —— 所有设备（含当前）强制重新登录。
      */
     @Transactional(rollbackFor = Exception.class)
     public void changePassword(Long userId, ChangePasswordDTO dto) {
@@ -67,11 +65,15 @@ public class AccountSecurityService {
         SysUser patch = new SysUser();
         patch.setId(userId);
         patch.setPassword(passwordEncoder.encode(dto.getNewPassword()));
-        patch.setTokenInvalidBefore(LocalDateTime.now());   // 全端强制下线
         userMapper.updateById(patch);
 
+        int affected = userMapper.bumpTokenVersion(userId);
+        if (affected == 0) {
+            throw new BusinessException(ResultCode.USER_NOT_FOUND);
+        }
+
         loginAttemptService.reset(lockKey);
-        userStateCache.invalidate(userId);
+        userStateCache.invalidateAfterCommit(userId);
         log.info("用户 {} 修改了密码", userId);
     }
 
@@ -81,7 +83,7 @@ public class AccountSecurityService {
      * - 边界 2：在售/交易中的商品需先处理 —— 在售商品随注销自动下架；
      * - 边界 3：管理员账户不允许注销；
      * - 学号保留占用（唯一索引仍在），防止他人抢注冒充；
-     * - status = CANCELLED + 推进失效纪元，所有 Token 立即作废。
+     * - status = CANCELLED + 推进 Token 版本，所有 Token 立即作废。
      */
     @Transactional(rollbackFor = Exception.class)
     public void cancelAccount(Long userId, CancelAccountDTO dto) {
@@ -115,10 +117,14 @@ public class AccountSecurityService {
         SysUser patch = new SysUser();
         patch.setId(userId);
         patch.setStatus("CANCELLED");
-        patch.setTokenInvalidBefore(LocalDateTime.now());
         userMapper.updateById(patch);
 
-        userStateCache.invalidate(userId);
+        int affected = userMapper.bumpTokenVersion(userId);
+        if (affected == 0) {
+            throw new BusinessException(ResultCode.USER_NOT_FOUND);
+        }
+
+        userStateCache.invalidateAfterCommit(userId);
         log.info("用户 {}（学号 {}）注销了账号", userId, user.getStudentId());
     }
 }

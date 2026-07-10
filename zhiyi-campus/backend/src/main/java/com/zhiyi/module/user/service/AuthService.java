@@ -9,6 +9,7 @@ import com.zhiyi.module.user.dto.ResetPasswordDTO;
 import com.zhiyi.module.user.entity.SysUser;
 import com.zhiyi.module.user.mapper.SysUserMapper;
 import com.zhiyi.module.user.support.LoginAttemptService;
+import com.zhiyi.module.user.support.StudentIdNormalizer;
 import com.zhiyi.module.user.support.UserStateCache;
 import com.zhiyi.module.user.vo.LoginVO;
 import com.zhiyi.module.user.vo.UserVO;
@@ -60,11 +61,12 @@ public class AuthService {
         if (!dto.getPassword().equals(dto.getConfirmPassword())) {
             throw new BusinessException(ResultCode.BAD_REQUEST, "两次输入的密码不一致");
         }
+        String studentId = StudentIdNormalizer.normalize(dto.getStudentId());
         // 密保问题支持预设列表之外的自定义问题（长度由 DTO @Size 约束）
         // 先查提示更友好（非并发场景直接命中）；并发窗口由唯一索引兜底
         SysUser exists = userMapper.selectOne(Wrappers.<SysUser>lambdaQuery()
                 .select(SysUser::getId, SysUser::getStatus)
-                .eq(SysUser::getStudentId, dto.getStudentId()));
+                .eq(SysUser::getStudentId, studentId));
         if (exists != null) {
             if ("CANCELLED".equals(exists.getStatus())) {
                 throw new BusinessException(ResultCode.USER_CANCELLED, "该学号的账户已注销，如需恢复请联系管理员");
@@ -73,14 +75,15 @@ public class AuthService {
         }
 
         SysUser user = new SysUser();
-        user.setStudentId(dto.getStudentId());
+        user.setStudentId(studentId);
         user.setPassword(passwordEncoder.encode(dto.getPassword()));                    // BCrypt，不存明文
-        user.setNickname(defaultNickname(dto.getNickname(), dto.getStudentId()));
+        user.setNickname(defaultNickname(dto.getNickname(), studentId));
         user.setPhone(dto.getPhone());
         user.setRole("USER");
         user.setStatus("ACTIVE");
         user.setLevel(1);
         user.setExp(0);
+        user.setTokenVersion(0);
         user.setWalletBalance(BigDecimal.ZERO);
         user.setSecurityQuestion(dto.getSecurityQuestion());
         user.setSecurityAnswer(passwordEncoder.encode(normalizeAnswer(dto.getSecurityAnswer()))); // 密保答案同样加密
@@ -91,7 +94,8 @@ public class AuthService {
             throw new BusinessException(ResultCode.STUDENT_ID_EXISTS, "该学号已注册，请直接登录或找回密码");
         }
 
-        String token = jwtUtils.generateToken(user.getId(), user.getRole());
+        String token = jwtUtils.generateToken(
+                user.getId(), user.getRole(), user.getTokenVersion());
         return new LoginVO(token, UserVO.from(user));
     }
 
@@ -100,15 +104,16 @@ public class AuthService {
      */
     @Transactional(rollbackFor = Exception.class)
     public LoginVO login(LoginDTO dto) {
+        String studentId = StudentIdNormalizer.normalize(dto.getStudentId());
         // 失败限流：BCrypt 校验开销大，先挡住暴力尝试
-        if (loginAttemptService.isLocked(dto.getStudentId())) {
+        if (loginAttemptService.isLocked(studentId)) {
             throw new BusinessException(ResultCode.LOGIN_LOCKED);
         }
 
         SysUser user = userMapper.selectOne(Wrappers.<SysUser>lambdaQuery()
-                .eq(SysUser::getStudentId, dto.getStudentId()));
+                .eq(SysUser::getStudentId, studentId));
         if (user == null || !passwordEncoder.matches(dto.getPassword(), user.getPassword())) {
-            loginAttemptService.recordFailure(dto.getStudentId());
+            loginAttemptService.recordFailure(studentId);
             // 不区分「用户不存在」与「密码错误」，防止学号枚举
             throw new BusinessException(ResultCode.PASSWORD_ERROR, "学号或密码错误");
         }
@@ -135,11 +140,12 @@ public class AuthService {
                     .set(SysUser::getBanUntilTime, null));
             user.setStatus("ACTIVE");
             user.setBanUntilTime(null);
-            userStateCache.invalidate(user.getId());
+            userStateCache.invalidateAfterCommit(user.getId());
         }
 
-        loginAttemptService.reset(dto.getStudentId());
-        String token = jwtUtils.generateToken(user.getId(), user.getRole());
+        loginAttemptService.reset(studentId);
+        String token = jwtUtils.generateToken(
+                user.getId(), user.getRole(), user.getTokenVersion());
         return new LoginVO(token, UserVO.from(user));
     }
 
@@ -147,6 +153,7 @@ public class AuthService {
      * 获取密保问题（需求 1.3 步骤 2）
      */
     public String getSecurityQuestion(String studentId) {
+        studentId = StudentIdNormalizer.normalize(studentId);
         SysUser user = userMapper.selectOne(Wrappers.<SysUser>lambdaQuery()
                 .select(SysUser::getId, SysUser::getSecurityQuestion, SysUser::getStatus)
                 .eq(SysUser::getStudentId, studentId));
@@ -161,21 +168,22 @@ public class AuthService {
 
     /**
      * 验证密保并重置密码（需求 1.3）
-     * 重置成功后推进 token_invalid_before，使所有旧 Token 立即失效。
+     * 重置成功后推进 tokenVersion，使所有旧 Token 立即失效。
      */
     @Transactional(rollbackFor = Exception.class)
     public void resetPassword(ResetPasswordDTO dto) {
         if (!dto.getNewPassword().equals(dto.getConfirmPassword())) {
             throw new BusinessException(ResultCode.BAD_REQUEST, "两次输入的密码不一致");
         }
+        String studentId = StudentIdNormalizer.normalize(dto.getStudentId());
         // 密保答案验证也走失败限流，防止暴力猜答案
-        String lockKey = "reset:" + dto.getStudentId();
+        String lockKey = "reset:" + studentId;
         if (loginAttemptService.isLocked(lockKey)) {
             throw new BusinessException(ResultCode.LOGIN_LOCKED, "尝试次数过多，请稍后再试");
         }
 
         SysUser user = userMapper.selectOne(Wrappers.<SysUser>lambdaQuery()
-                .eq(SysUser::getStudentId, dto.getStudentId()));
+                .eq(SysUser::getStudentId, studentId));
         if (user == null) {
             throw new BusinessException(ResultCode.USER_NOT_FOUND, "该学号尚未注册");
         }
@@ -195,11 +203,15 @@ public class AuthService {
         SysUser patch = new SysUser();
         patch.setId(user.getId());
         patch.setPassword(passwordEncoder.encode(dto.getNewPassword()));
-        patch.setTokenInvalidBefore(LocalDateTime.now());   // 旧 Token 全部作废，强制重新登录
         userMapper.updateById(patch);
 
+        int affected = userMapper.bumpTokenVersion(user.getId());
+        if (affected == 0) {
+            throw new BusinessException(ResultCode.USER_NOT_FOUND);
+        }
+
         loginAttemptService.reset(lockKey);
-        userStateCache.invalidate(user.getId());
+        userStateCache.invalidateAfterCommit(user.getId());
         log.info("用户 {} 通过密保重置了密码", user.getStudentId());
     }
 

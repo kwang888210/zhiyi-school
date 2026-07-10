@@ -7,10 +7,12 @@ import com.zhiyi.module.admin.entity.ViolationLog;
 import com.zhiyi.module.admin.mapper.ViolationLogMapper;
 import com.zhiyi.module.user.dto.BanUserDTO;
 import com.zhiyi.module.user.entity.SysUser;
+import com.zhiyi.module.user.event.UserPunishedEvent;
 import com.zhiyi.module.user.mapper.SysUserMapper;
 import com.zhiyi.module.user.support.UserStateCache;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -28,6 +30,7 @@ public class BanService {
     private final SysUserMapper userMapper;
     private final ViolationLogMapper violationLogMapper;
     private final UserStateCache userStateCache;
+    private final ApplicationEventPublisher eventPublisher;
 
     /**
      * 执行处罚（管理员操作）
@@ -42,6 +45,8 @@ public class BanService {
             throw new BusinessException(ResultCode.FORBIDDEN, "不能处罚管理员账户");
         }
 
+        LocalDateTime banUntilTime = null;
+        boolean revokeTokens = false;
         switch (dto.getType()) {
             case "WARNING" -> {
                 // 警告：仅记录，不影响使用
@@ -53,18 +58,23 @@ public class BanService {
                 SysUser patch = new SysUser();
                 patch.setId(target.getId());
                 patch.setStatus("BANNED_TEMP");
-                patch.setBanUntilTime(LocalDateTime.now().plusDays(dto.getBanDays()));
-                patch.setTokenInvalidBefore(LocalDateTime.now());  // 已登录会话立即失效
+                banUntilTime = LocalDateTime.now().plusDays(dto.getBanDays());
+                patch.setBanUntilTime(banUntilTime);
                 userMapper.updateById(patch);
+                revokeTokens = true;
             }
             case "BAN_PERM" -> {
                 SysUser patch = new SysUser();
                 patch.setId(target.getId());
                 patch.setStatus("BANNED_PERM");
-                patch.setTokenInvalidBefore(LocalDateTime.now());
                 userMapper.updateById(patch);
+                revokeTokens = true;
             }
             default -> throw new BusinessException(ResultCode.BAD_REQUEST, "未知处罚类型");
+        }
+
+        if (revokeTokens && userMapper.bumpTokenVersion(dto.getUserId()) == 0) {
+            throw new BusinessException(ResultCode.USER_NOT_FOUND);
         }
 
         // 处罚记录可追溯（需求 1.6 验收标准）
@@ -76,7 +86,14 @@ public class BanService {
         vlog.setBanDays("BAN_TEMP".equals(dto.getType()) ? dto.getBanDays() : null);
         violationLogMapper.insert(vlog);
 
-        userStateCache.invalidate(dto.getUserId());
+        eventPublisher.publishEvent(new UserPunishedEvent(
+                dto.getUserId(),
+                dto.getType(),
+                dto.getReason(),
+                "BAN_TEMP".equals(dto.getType()) ? dto.getBanDays() : null,
+                banUntilTime));
+
+        userStateCache.invalidateAfterCommit(dto.getUserId());
         log.info("管理员 {} 对用户 {} 执行处罚 {}：{}", adminId, dto.getUserId(), dto.getType(), dto.getReason());
     }
 
@@ -102,7 +119,7 @@ public class BanService {
                 .eq(SysUser::getId, userId)
                 .set(SysUser::getBanUntilTime, null));
 
-        userStateCache.invalidate(userId);
+        userStateCache.invalidateAfterCommit(userId);
         log.info("管理员 {} 解封用户 {}", adminId, userId);
     }
 }

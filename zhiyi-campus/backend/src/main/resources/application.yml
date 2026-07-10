@@ -59,4 +59,4 @@ zhiyi:
   auth:
     login-fail-limit: 5                      # 同一账号连续密码错误次数上限
     login-fail-lock-seconds: 300             # 触发上限后锁定时长（秒）
-    user-state-cache-seconds: 60             # 用户状态（封禁/Token失效纪元）本地缓存时长
+    user-state-cache-seconds: 60             # 用户状态（封禁/Token版本）本地缓存时长

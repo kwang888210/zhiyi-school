@@ -77,7 +77,7 @@
             <artifactId>spring-security-crypto</artifactId>
         </dependency>
 
-        <!-- Caffeine 本地缓存（Token 失效纪元 / 登录失败限流，高并发下避免每请求打 DB） -->
+        <!-- Caffeine 本地缓存（Token 版本 / 登录失败限流，高并发下避免每请求打 DB） -->
         <dependency>
             <groupId>com.github.ben-manes.caffeine</groupId>
             <artifactId>caffeine</artifactId>

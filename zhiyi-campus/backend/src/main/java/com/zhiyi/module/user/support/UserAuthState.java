@@ -16,5 +16,5 @@ public class UserAuthState {
     private String role;
     private String status;                      // ACTIVE / BANNED_TEMP / BANNED_PERM
     private LocalDateTime banUntilTime;
-    private LocalDateTime tokenInvalidBefore;   // 签发早于此时刻的 Token 一律拒绝
+    private Integer tokenVersion;               // 必须与 JWT 中的版本一致
 }

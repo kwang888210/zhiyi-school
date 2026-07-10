@@ -7,6 +7,8 @@ import com.zhiyi.module.user.entity.SysUser;
 import com.zhiyi.module.user.mapper.SysUserMapper;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.time.Duration;
 import java.util.Optional;
@@ -18,7 +20,7 @@ import java.util.Optional;
  * - 每个已登录请求都需要校验「是否被封禁 / Token 是否被强制失效」，
  *   若直查 DB，10000 并发下 sys_user 表将成为热点。
  * - 这里用 Caffeine 缓存状态快照（默认 60s TTL），DB 压力降为 ~1次/用户/分钟；
- * - 封禁 / 解封 / 重置密码等写操作后主动 invalidate，本机立即生效。
+ * - 封禁 / 解封 / 重置密码等写操作在事务提交后主动 invalidate；回滚不清缓存。
  * - 集群部署时可将本缓存替换为 Redis（接口不变）。
  */
 @Component
@@ -39,13 +41,13 @@ public class UserStateCache {
     private Optional<UserAuthState> loadFromDb(Long userId) {
         SysUser u = userMapper.selectOne(Wrappers.<SysUser>lambdaQuery()
                 .select(SysUser::getId, SysUser::getRole, SysUser::getStatus,
-                        SysUser::getBanUntilTime, SysUser::getTokenInvalidBefore)
+                        SysUser::getBanUntilTime, SysUser::getTokenVersion)
                 .eq(SysUser::getId, userId));
         if (u == null) {
             return Optional.empty();
         }
         return Optional.of(new UserAuthState(
-                u.getId(), u.getRole(), u.getStatus(), u.getBanUntilTime(), u.getTokenInvalidBefore()));
+                u.getId(), u.getRole(), u.getStatus(), u.getBanUntilTime(), u.getTokenVersion()));
     }
 
     /** 获取用户状态快照；用户不存在返回 null */
@@ -53,8 +55,27 @@ public class UserStateCache {
         return cache.get(userId).orElse(null);
     }
 
-    /** 状态变更（封禁/解封/改密）后调用，保证本机立即生效 */
+    /** 明确的非事务状态变更后调用，立即清除本机缓存。 */
     public void invalidate(Long userId) {
         cache.invalidate(userId);
+    }
+
+    /**
+     * 在事务提交后失效缓存，避免事务未提交时并发请求重新缓存旧数据库状态。
+     * 非事务调用保持立即失效语义。
+     */
+    public void invalidateAfterCommit(Long userId) {
+        if (!TransactionSynchronizationManager.isActualTransactionActive()
+                || !TransactionSynchronizationManager.isSynchronizationActive()) {
+            invalidate(userId);
+            return;
+        }
+        TransactionSynchronizationManager.registerSynchronization(
+                new TransactionSynchronization() {
+                    @Override
+                    public void afterCommit() {
+                        invalidate(userId);
+                    }
+                });
     }
 }

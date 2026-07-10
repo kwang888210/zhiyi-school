@@ -32,7 +32,7 @@ CREATE TABLE sys_user (
     role            VARCHAR(20)     NOT NULL DEFAULT 'USER'  COMMENT '角色：USER/ADMIN',
     status          VARCHAR(20)     NOT NULL DEFAULT 'ACTIVE' COMMENT '状态：ACTIVE/BANNED_TEMP/BANNED_PERM/CANCELLED（已注销）',
     ban_until_time  DATETIME        DEFAULT NULL             COMMENT '封禁截止时间（临时封禁）',
-    token_invalid_before DATETIME   DEFAULT NULL             COMMENT 'Token失效纪元：早于此时刻签发的JWT一律拒绝（改密/封禁时更新，实现强制下线）',
+    token_version   INT             NOT NULL DEFAULT 0       COMMENT 'Token版本：改密、重置、封禁和注销时原子递增',
     level           INT             NOT NULL DEFAULT 1       COMMENT '用户等级',
     exp             INT             NOT NULL DEFAULT 0       COMMENT '累计经验值',
     wallet_balance  DECIMAL(10,2)   NOT NULL DEFAULT 0.00    COMMENT '钱包余额',

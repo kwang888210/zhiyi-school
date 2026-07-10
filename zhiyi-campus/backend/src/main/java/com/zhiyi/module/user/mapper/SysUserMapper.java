@@ -22,7 +22,11 @@ public interface SysUserMapper extends BaseMapper<SysUser> {
     @Update("UPDATE sys_user SET exp = GREATEST(0, exp + #{delta}) WHERE id = #{userId}")
     int incrExp(@Param("userId") Long userId, @Param("delta") int delta);
 
-    /** 原子增经验后回读最新 exp（同一事务内，供等级结算与流水记录用） */
-    @Select("SELECT exp FROM sys_user WHERE id = #{userId}")
-    Integer selectExp(@Param("userId") Long userId);
+    /** 原子增减经验后回读最新成长状态（同一事务内，供单向等级结算与流水记录用） */
+    @Select("SELECT id, exp, level FROM sys_user WHERE id = #{userId}")
+    SysUser selectGrowthState(@Param("userId") Long userId);
+
+    /** 原子推进 Token 版本，使此前签发的所有 JWT 失效。 */
+    @Update("UPDATE sys_user SET token_version = token_version + 1 WHERE id = #{userId}")
+    int bumpTokenVersion(@Param("userId") Long userId);
 }

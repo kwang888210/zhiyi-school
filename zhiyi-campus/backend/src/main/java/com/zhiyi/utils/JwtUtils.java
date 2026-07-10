@@ -15,6 +15,8 @@ import java.util.Date;
 @Component
 public class JwtUtils {
 
+    public static final String TOKEN_VERSION_CLAIM = "tokenVersion";
+
     private final SecretKey key;
     private final long expiration;
 
@@ -27,16 +29,18 @@ public class JwtUtils {
     /**
      * 生成 Token
      */
-    public String generateToken(Long userId, String role) {
+    public String generateToken(Long userId, String role, Integer tokenVersion) {
         Date now = new Date();
         return Jwts.builder()
                 .subject(String.valueOf(userId))
                 .claim("role", role)
+                .claim(TOKEN_VERSION_CLAIM, tokenVersion == null ? 0 : tokenVersion)
                 .issuedAt(now)
                 .expiration(new Date(now.getTime() + expiration))
                 .signWith(key)
                 .compact();
     }
+
 
     /**
      * 从 Token 中解析用户 ID

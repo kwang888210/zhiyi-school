@@ -11,7 +11,6 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.servlet.HandlerInterceptor;
 
 import java.time.LocalDateTime;
-import java.time.ZoneId;
 import java.util.regex.Pattern;
 
 /**
@@ -19,8 +18,8 @@ import java.util.regex.Pattern;
  *
  * 高并发设计：
  * - Token 只解析一次（一次签名验证拿到全部 Claims）；
- * - 封禁状态 / Token 失效纪元走 Caffeine 本地缓存（UserStateCache），不逐请求查库；
- * - 借助失效纪元（token_invalid_before），重置密码/封禁后旧 Token 立刻作废（需求 1.3/1.6）。
+ * - 封禁状态 / Token 版本走 Caffeine 本地缓存（UserStateCache），不逐请求查库；
+ * - 重置密码、改密、封禁或注销后推进版本，旧 Token 立刻作废（需求 1.3/1.6）。
  */
 @Component
 public class JwtInterceptor implements HandlerInterceptor {
@@ -67,14 +66,14 @@ public class JwtInterceptor implements HandlerInterceptor {
             return false;
         }
 
-        // 失效纪元：重置密码 / 被封禁后签发的旧 Token 一律拒绝
-        if (state.getTokenInvalidBefore() != null) {
-            LocalDateTime issuedAt = LocalDateTime.ofInstant(
-                    claims.getIssuedAt().toInstant(), ZoneId.systemDefault());
-            if (issuedAt.isBefore(state.getTokenInvalidBefore())) {
-                WebResponseUtil.writeJson(response, 401, 401, "登录状态已失效，请重新登录");
-                return false;
-            }
+        Integer claimVersion =
+                claims.get(JwtUtils.TOKEN_VERSION_CLAIM, Integer.class);
+        int issuedVersion = claimVersion == null ? 0 : claimVersion;
+        int currentVersion =
+                state.getTokenVersion() == null ? 0 : state.getTokenVersion();
+        if (issuedVersion != currentVersion) {
+            WebResponseUtil.writeJson(response, 401, 401, "登录状态已失效，请重新登录");
+            return false;
         }
 
         // 封禁/注销校验：永久封禁与已注销直接拒绝；临时封禁未到期拒绝（到期由登录流程恢复 ACTIVE）
