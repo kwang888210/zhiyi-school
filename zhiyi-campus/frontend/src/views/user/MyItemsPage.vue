@@ -8,13 +8,13 @@
         <button
           v-for="t in STATUS_TABS" :key="t.value"
           class="btn btn--sm" :class="{ 'btn--dark': statusFilter === t.value }"
-          @click="statusFilter = t.value"
+          @click="handleStatusChange(t.value)"
         >{{ t.label }}</button>
       </div>
 
-      <template v-if="filteredItems.length">
+      <template v-if="items.length">
         <div class="item-list">
-          <article v-for="item in filteredItems" :key="item.id" class="card item-row">
+          <article v-for="item in items" :key="item.id" class="card item-row">
             <div class="item-row__thumb" :class="phClass(item.id)">
               <img v-if="mainImage(item)" :src="mainImage(item)" :alt="item.title" />
             </div>
@@ -63,11 +63,12 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import DefaultLayout from '@/components/layout/DefaultLayout.vue'
 import PriceTag from '@/components/common/PriceTag.vue'
 import { getMyItems, offShelfItem, relistItem, deleteItem } from '@/api/item'
+import { buildMyItemsParams } from './myItemsQuery.js'
 
 /**
  * 我的发布（模块一页面归属 A；商品操作接口由 B 提供，按附录 B 契约调用）
@@ -92,10 +93,6 @@ const statusFilter = ref('')
 const acting = ref(false)
 const loadError = ref('')
 
-const filteredItems = computed(() =>
-  statusFilter.value ? items.value.filter((i) => i.status === statusFilter.value) : items.value
-)
-
 function statusText(s) { return STATUS_TEXT[s] || s }
 function statusBadge(s) { return STATUS_BADGE[s] || 'badge--muted' }
 function phClass(id) { return PH[Number(id) % PH.length] }
@@ -110,7 +107,7 @@ function mainImage(item) {
 
 async function fetchItems() {
   try {
-    const res = await getMyItems({ page: page.value, size: pageSize })
+    const res = await getMyItems(buildMyItemsParams(page.value, pageSize, statusFilter.value))
     // 兼容分页对象或纯数组两种返回
     items.value = res.data?.records || res.data || []
     total.value = Number(res.data?.total ?? items.value.length)
@@ -119,6 +116,13 @@ async function fetchItems() {
     // B 模块接口未就绪时优雅降级
     loadError.value = '「我的发布」列表接口（模块 B）尚未就绪，联调后即可展示'
   }
+}
+
+function handleStatusChange(status) {
+  if (statusFilter.value === status) return
+  statusFilter.value = status
+  page.value = 1
+  fetchItems()
 }
 
 async function handleOffShelf(item) {

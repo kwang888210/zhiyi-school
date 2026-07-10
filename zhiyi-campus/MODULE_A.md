@@ -31,7 +31,7 @@
 | GET | `/api/user/profile` | 当前用户（含 levelTitle / nextLevelExp / currentLevelBaseExp，前端进度条直接用） |
 | PUT | `/api/user/profile` | 更新昵称/手机号 |
 | GET | `/api/user/exp-log?page=&size=` | 经验流水（分页） |
-| GET | `/api/user/{id}/card` | 公开名片（昵称+等级，**B/C 做商品详情/聊天时直接调**） |
+| GET | `/api/user/{id}/card` | 公开名片，无需登录；仅返回 `id/nickname/level/levelTitle`，**B/C 做商品详情/聊天时直接调** |
 | PUT | `/api/user/change-password` | 修改密码 `{oldPassword, newPassword, confirmPassword}`（新旧不得相同） |
 | POST | `/api/user/cancel-account` | 注销账号 `{password}`（软注销，进行中订单存在时返回 409） |
 

@@ -8,6 +8,7 @@ import com.zhiyi.module.user.dto.UpdateProfileDTO;
 import com.zhiyi.module.user.entity.ExpLog;
 import com.zhiyi.module.user.service.AccountSecurityService;
 import com.zhiyi.module.user.service.UserService;
+import com.zhiyi.module.user.vo.PublicUserCardVO;
 import com.zhiyi.module.user.vo.UserVO;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -50,7 +51,7 @@ public class UserController {
     }
 
     @GetMapping("/{id}/card")
-    public Result<UserVO> card(@PathVariable Long id) {
+    public Result<PublicUserCardVO> card(@PathVariable Long id) {
         return Result.ok(userService.getPublicProfile(id));
     }
 

@@ -12,6 +12,7 @@ import org.springframework.web.servlet.HandlerInterceptor;
 
 import java.time.LocalDateTime;
 import java.time.ZoneId;
+import java.util.regex.Pattern;
 
 /**
  * JWT 登录拦截器 —— 校验每个请求的 Token，把 userId 和 role 放入 Request 供后续 Controller 使用。
@@ -23,6 +24,9 @@ import java.time.ZoneId;
  */
 @Component
 public class JwtInterceptor implements HandlerInterceptor {
+
+    private static final Pattern PUBLIC_ITEM_DETAIL = Pattern.compile("^/api/item/\\d+$");
+    private static final Pattern PUBLIC_USER_CARD = Pattern.compile("^/api/user/\\d+/card$");
 
     private final JwtUtils jwtUtils;
     private final UserStateCache userStateCache;
@@ -37,6 +41,10 @@ public class JwtInterceptor implements HandlerInterceptor {
                              Object handler) throws Exception {
         // OPTIONS 预检请求直接放行
         if ("OPTIONS".equalsIgnoreCase(request.getMethod())) {
+            return true;
+        }
+        // 动态公开接口必须同时匹配 HTTP 方法和完整路径，避免 PUT/DELETE 商品接口被一并放行。
+        if (isDynamicPublicGet(request)) {
             return true;
         }
 
@@ -89,5 +97,16 @@ public class JwtInterceptor implements HandlerInterceptor {
         request.setAttribute("userId", userId);
         request.setAttribute("role", claims.get("role", String.class));
         return true;
+    }
+
+    private boolean isDynamicPublicGet(HttpServletRequest request) {
+        if (!"GET".equalsIgnoreCase(request.getMethod())) {
+            return false;
+        }
+        String requestUri = request.getRequestURI();
+        String contextPath = request.getContextPath();
+        String path = contextPath.isEmpty() ? requestUri : requestUri.substring(contextPath.length());
+        return PUBLIC_ITEM_DETAIL.matcher(path).matches()
+                || PUBLIC_USER_CARD.matcher(path).matches();
     }
 }

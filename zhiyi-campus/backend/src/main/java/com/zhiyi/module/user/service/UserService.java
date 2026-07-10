@@ -10,6 +10,8 @@ import com.zhiyi.module.user.entity.ExpLog;
 import com.zhiyi.module.user.entity.SysUser;
 import com.zhiyi.module.user.mapper.ExpLogMapper;
 import com.zhiyi.module.user.mapper.SysUserMapper;
+import com.zhiyi.module.user.support.LevelRule;
+import com.zhiyi.module.user.vo.PublicUserCardVO;
 import com.zhiyi.module.user.vo.UserVO;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -56,16 +58,14 @@ public class UserService {
     }
 
     /** 公开的用户名片（昵称+等级，商品详情/聊天头像旁展示用，供 B/C 模块调用） */
-    public UserVO getPublicProfile(Long userId) {
+    public PublicUserCardVO getPublicProfile(Long userId) {
         SysUser user = userMapper.selectOne(Wrappers.<SysUser>lambdaQuery()
-                .select(SysUser::getId, SysUser::getNickname, SysUser::getLevel,
-                        SysUser::getExp, SysUser::getCreatedAt)
+                .select(SysUser::getId, SysUser::getNickname, SysUser::getLevel)
                 .eq(SysUser::getId, userId));
         if (user == null) {
             throw new BusinessException(ResultCode.USER_NOT_FOUND);
         }
-        user.setStatus(null);
-        user.setRole(null);
-        return UserVO.from(user);
+        return new PublicUserCardVO(
+                user.getId(), user.getNickname(), user.getLevel(), LevelRule.titleOf(user.getLevel()));
     }
 }
