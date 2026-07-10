@@ -1,4 +1,6 @@
 .claude/
+.agents/
+.codex/
 design-demo/
 zhiyi-campus/backend/target/
 zhiyi-campus/frontend/node_modules/
