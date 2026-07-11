@@ -22,6 +22,7 @@
         <java.version>17</java.version>
         <mybatis-plus.version>3.5.5</mybatis-plus.version>
         <jjwt.version>0.12.3</jjwt.version>
+        <lombok.version>1.18.42</lombok.version>
     </properties>
 
     <dependencies>
@@ -70,6 +71,18 @@
             <scope>runtime</scope>
         </dependency>
 
+        <!-- Spring Security Crypto（仅用 BCrypt 加密，不引入完整 Security 过滤链） -->
+        <dependency>
+            <groupId>org.springframework.security</groupId>
+            <artifactId>spring-security-crypto</artifactId>
+        </dependency>
+
+        <!-- Caffeine 本地缓存（Token 版本 / 登录失败限流，高并发下避免每请求打 DB） -->
+        <dependency>
+            <groupId>com.github.ben-manes.caffeine</groupId>
+            <artifactId>caffeine</artifactId>
+        </dependency>
+
         <!-- Lombok -->
         <dependency>
             <groupId>org.projectlombok</groupId>
@@ -94,6 +107,20 @@
 
     <build>
         <plugins>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-compiler-plugin</artifactId>
+                <configuration>
+                    <!-- 显式注册 Lombok 注解处理器，避免环境差异导致 getter/构造器未生成 -->
+                    <annotationProcessorPaths>
+                        <path>
+                            <groupId>org.projectlombok</groupId>
+                            <artifactId>lombok</artifactId>
+                            <version>${lombok.version}</version>
+                        </path>
+                    </annotationProcessorPaths>
+                </configuration>
+            </plugin>
             <plugin>
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-maven-plugin</artifactId>
