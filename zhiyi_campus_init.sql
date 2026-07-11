@@ -252,12 +252,12 @@ CREATE TABLE exp_log (
 -- ============================================================
 
 -- -----------------------------------------------------------
--- 3.1 系统管理员（账号 admin，密码 admin123，密保答案 admin，均为 BCrypt 真实哈希）
+-- 3.1 系统管理员（账号 admin；密码与密保答案均以 BCrypt 哈希形式保存，初始化后请在本地重置）
 -- -----------------------------------------------------------
 INSERT INTO sys_user (student_id, password, nickname, role, status, level, exp, wallet_balance, security_question, security_answer)
 VALUES (
     'admin',
-    '$2a$10$8Jcbe5NyLSowgw.3zOB9bOgoKCpwTuoHWLDAv0robpXmRA10hBngS',  -- "admin123" 的 BCrypt 哈希
+    '$2a$10$8Jcbe5NyLSowgw.3zOB9bOgoKCpwTuoHWLDAv0robpXmRA10hBngS',  -- BCrypt 哈希
     '系统管理员',
     'ADMIN',
     'ACTIVE',

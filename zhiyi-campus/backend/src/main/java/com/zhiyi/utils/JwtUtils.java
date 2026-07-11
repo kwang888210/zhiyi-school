@@ -22,7 +22,11 @@ public class JwtUtils {
 
     public JwtUtils(@Value("${zhiyi.jwt.secret}") String secret,
                     @Value("${zhiyi.jwt.expiration}") long expiration) {
-        this.key = Keys.hmacShaKeyFor(secret.getBytes(StandardCharsets.UTF_8));
+        byte[] secretBytes = secret == null ? new byte[0] : secret.getBytes(StandardCharsets.UTF_8);
+        if (secretBytes.length < 32) {
+            throw new IllegalArgumentException("JWT_SECRET must be set and contain at least 32 UTF-8 bytes.");
+        }
+        this.key = Keys.hmacShaKeyFor(secretBytes);
         this.expiration = expiration;
     }
 

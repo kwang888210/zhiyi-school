@@ -201,7 +201,7 @@ public class MarketplaceService {
         itemMapper.deleteById(itemId);
     }
 
-    public List<ItemCardVO> ranking(int limit) {
+    public List<ItemCardVO> ranking(int limit, Long currentUserId) {
         int safeLimit = Math.max(1, Math.min(limit, 20));
         List<Map<String, Object>> rows = favoriteMapper.selectMaps(new QueryWrapper<ItemFavorite>()
                 .select("item_id", "COUNT(*) AS favorite_count")
@@ -238,7 +238,7 @@ public class MarketplaceService {
             items.addAll(itemMapper.selectList(fillerWrapper));
         }
 
-        List<ItemCardVO> cards = toItemCards(items, null);
+        List<ItemCardVO> cards = toItemCards(items, currentUserId);
         for (ItemCardVO card : cards) {
             card.setFavoriteCount(counts.getOrDefault(card.getId(), 0L));
         }

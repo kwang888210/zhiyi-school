@@ -1,24 +1,33 @@
 <template>
   <DefaultLayout>
     <div class="detail-page">
-      <button class="btn btn--sm" @click="router.back()">返回</button>
+      <nav class="crumb" aria-label="面包屑">
+        <router-link to="/">交易大厅</router-link>
+        <span>/</span>
+        <button v-if="item?.categoryName" class="crumb-link" @click="goTag(item.categoryName)">{{ item.categoryName }}</button>
+        <span v-if="item?.categoryName">/</span>
+        <span>商品详情</span>
+      </nav>
 
       <el-skeleton v-if="loading" :rows="10" animated />
 
       <template v-else-if="item">
-        <section class="detail-grid">
+        <section class="detail">
           <div class="gallery">
-            <div class="gallery-main" :class="phClass(item.id)">
+            <div class="gallery__main" :class="phClass(item.id)">
               <img v-if="activeImage" :src="activeImage" :alt="item.title" />
               <span class="badge gallery-state" :class="item.type === 'BUY' ? 'badge--buy' : 'badge--sell'">
                 {{ item.type === 'BUY' ? '求购' : '出售' }}
               </span>
+              <button v-if="item.images?.length > 1" class="gallery__nav gallery__nav--prev" aria-label="上一张" @click="switchImage(-1)">‹</button>
+              <button v-if="item.images?.length > 1" class="gallery__nav gallery__nav--next" aria-label="下一张" @click="switchImage(1)">›</button>
+              <span v-if="item.images?.length" class="gallery__count">{{ activeImageIndex + 1 }} / {{ item.images.length }}</span>
             </div>
-            <div v-if="item.images?.length > 1" class="thumbs">
+            <div v-if="item.images?.length > 1" class="gallery__thumbs">
               <button
                 v-for="image in item.images"
                 :key="image"
-                class="thumb"
+                class="th"
                 :class="{ active: image === activeImage }"
                 @click="activeImage = image"
               >
@@ -27,47 +36,62 @@
             </div>
           </div>
 
-          <div class="info-panel">
-            <div class="title-line">
+          <div class="info-panel rise rise-1">
+            <div class="info-head">
+              <span class="badge" :class="item.type === 'BUY' ? 'badge--buy' : 'badge--sell'">
+                {{ item.type === 'BUY' ? '求购' : '出售' }}
+              </span>
               <h1>{{ item.title }}</h1>
               <span class="badge" :class="statusBadge(item.status)">{{ statusText(item.status) }}</span>
             </div>
-            <PriceTag :value="item.price" font-size="34px" />
+
+            <div class="price-strip">
+              <PriceTag :value="item.price" font-size="40px" />
+              <span class="escrow">平台担保 · 确认收货后打款</span>
+            </div>
 
             <div class="meta-grid">
-              <span>分类：{{ item.categoryName || '未分类' }}</span>
-              <span>浏览：{{ item.viewCount || 0 }}</span>
-              <span>收藏：{{ favoriteCount }}</span>
-              <span>发布：{{ formatDate(item.createdAt) }}</span>
-            </div>
-
-            <div v-if="item.aiTags?.length" class="tag-row">
-              <button
-                v-for="tag in item.aiTags"
-                :key="tag"
-                class="tag"
-                @click="goTag(tag)"
-              >{{ tag }}</button>
-            </div>
-
-            <div class="seller-panel">
-              <UserAvatar :nickname="item.publisherNickname || '同学'" :user-id="item.publisherId || 0" size="m" />
-              <div>
-                <strong>{{ item.publisherNickname || '同学' }}</strong>
-                <LevelBadge :level="item.publisherLevel || 1" show-title />
+              <div class="meta-row">
+                <span class="lab">智能标签</span>
+                <div v-if="item.aiTags?.length" class="ai-tags">
+                  <button
+                    v-for="tag in item.aiTags"
+                    :key="tag"
+                    class="tag"
+                    @click="goTag(tag)"
+                  >{{ tag }}</button>
+                </div>
+                <span v-else>暂无标签</span>
+              </div>
+              <div class="meta-row">
+                <span class="lab">交易地点</span><strong>{{ item.tradeLocation || '待沟通' }}</strong>
+              </div>
+              <div class="meta-row">
+                <span class="lab">发布时间</span><span>{{ formatDate(item.createdAt) }}</span>
+              </div>
+              <div class="meta-row">
+                <span class="lab">浏览 / 收藏</span><span>{{ item.viewCount || 0 }} 次浏览 · {{ favoriteCount }} 人收藏</span>
               </div>
             </div>
 
-            <div class="description">
+            <div class="seller-card">
+              <UserAvatar :nickname="item.publisherNickname || '同学'" :user-id="item.publisherId || 0" size="l" />
+              <div class="seller-card__info">
+                <div class="seller-card__name">
+                  {{ item.publisherNickname || '同学' }}
+                  <LevelBadge :level="item.publisherLevel || 1" show-title />
+                </div>
+                <div class="seller-card__sub">卖家等级已接入成长体系，交易前可先沟通验货细节</div>
+                <div class="exp-bar" aria-hidden="true"><i></i></div>
+              </div>
+            </div>
+
+            <div class="card card--flat desc-block">
               <h2>商品描述</h2>
               <p>{{ item.description }}</p>
             </div>
 
-            <div v-if="item.tradeLocation" class="location-line">
-              交易地点：{{ item.tradeLocation }}
-            </div>
-
-            <div class="action-row">
+            <div class="action-bar">
               <template v-if="isOwner">
                 <router-link to="/user/my-items" class="btn">管理我的发布</router-link>
               </template>
@@ -83,6 +107,7 @@
                 <button class="btn btn--primary" disabled>立即购买</button>
               </template>
             </div>
+            <p class="muted escrow-note">点击“立即购买”后货款将由平台托管，当面验货满意再确认收货</p>
           </div>
         </section>
       </template>
@@ -123,6 +148,11 @@ const favoriteCount = ref(0)
 const activeImage = ref('')
 
 const isOwner = computed(() => String(item.value?.publisherId || '') === String(getUserId() || ''))
+const activeImageIndex = computed(() => {
+  const images = item.value?.images || []
+  const index = images.indexOf(activeImage.value)
+  return index >= 0 ? index : 0
+})
 
 function phClass(id) {
   return PH[Number(id) % PH.length]
@@ -138,6 +168,13 @@ function statusBadge(status) {
 
 function formatDate(value) {
   return value ? String(value).replace('T', ' ').slice(0, 16) : ''
+}
+
+function switchImage(offset) {
+  const images = item.value?.images || []
+  if (!images.length) return
+  const nextIndex = (activeImageIndex.value + offset + images.length) % images.length
+  activeImage.value = images[nextIndex]
 }
 
 async function fetchDetail() {
@@ -203,34 +240,57 @@ onMounted(fetchDetail)
 .detail-page {
   display: flex;
   flex-direction: column;
-  gap: var(--spacing-md);
+  gap: 0;
 }
 
-.detail-grid {
+.crumb {
+  margin: 0 0 18px;
+  font-size: 13.5px;
+  color: var(--ink-soft);
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.crumb a:hover,
+.crumb-link:hover {
+  color: var(--primary);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.crumb-link {
+  border: none;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  padding: 0;
+}
+
+.detail {
   display: grid;
-  grid-template-columns: minmax(320px, 520px) 1fr;
-  gap: var(--spacing-lg);
+  grid-template-columns: 460px 1fr;
+  gap: 32px;
   align-items: start;
 }
 
-.gallery,
-.info-panel {
-  background: var(--white);
-  border: var(--bw) solid var(--ink);
-  border-radius: var(--r-m);
-  box-shadow: var(--shadow-m);
+.gallery {
+  position: sticky;
+  top: 84px;
 }
 
-.gallery {
+.gallery__main {
+  position: relative;
+  aspect-ratio: 1 / 1;
+  border: var(--bw) solid var(--ink);
+  border-radius: var(--r-l);
+  box-shadow: var(--shadow-m);
+  display: grid;
+  place-items: center;
   overflow: hidden;
 }
 
-.gallery-main {
-  position: relative;
-  aspect-ratio: 1 / 1;
-}
-
-.gallery-main img {
+.gallery__main img {
   width: 100%;
   height: 100%;
   object-fit: cover;
@@ -242,110 +302,222 @@ onMounted(fetchDetail)
   left: 14px;
 }
 
-.thumbs {
+.gallery__nav {
+  position: absolute;
+  top: 50%;
+  translate: 0 -50%;
+  width: 40px;
+  height: 40px;
+  border: var(--bw) solid var(--ink);
+  border-radius: 50%;
+  background: var(--white);
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  box-shadow: 2px 2px 0 var(--ink);
+  font-size: 26px;
+  line-height: 1;
+}
+
+.gallery__nav:hover {
+  background: var(--yellow);
+}
+
+.gallery__nav--prev { left: 14px; }
+.gallery__nav--next { right: 14px; }
+
+.gallery__count {
+  position: absolute;
+  bottom: 12px;
+  right: 14px;
+  padding: 3px 12px;
+  background: var(--ink);
+  color: var(--paper);
+  border-radius: 999px;
+  font-size: 12.5px;
+  font-weight: 700;
+}
+
+.gallery__thumbs {
   display: flex;
-  gap: 8px;
-  padding: 12px;
-  border-top: var(--bw) solid var(--ink);
+  gap: 10px;
+  margin-top: 14px;
   overflow-x: auto;
 }
 
-.thumb {
-  width: 66px;
-  height: 66px;
+.th {
+  width: 68px;
+  height: 68px;
   border: var(--bw) solid var(--ink);
   border-radius: var(--r-s);
   overflow: hidden;
   background: var(--paper-deep);
   cursor: pointer;
-  opacity: .72;
+  opacity: .55;
+  transition: all .15s;
 }
 
-.thumb.active {
+.th:hover {
+  opacity: .85;
+}
+
+.th.active {
   opacity: 1;
-  box-shadow: var(--shadow-s);
+  box-shadow: 3px 3px 0 var(--ink);
+  transform: translate(-1px, -1px);
 }
 
-.thumb img {
+.th img {
   width: 100%;
   height: 100%;
   object-fit: cover;
 }
 
-.info-panel {
-  padding: var(--spacing-lg);
-  display: flex;
-  flex-direction: column;
-  gap: var(--spacing-md);
-}
-
-.title-line {
+.info-head {
   display: flex;
   align-items: flex-start;
-  justify-content: space-between;
-  gap: var(--spacing-md);
+  gap: 12px;
 }
 
-.title-line h1 {
-  font-size: 28px;
-  line-height: 1.25;
+.info-head h1 {
+  font-size: 26px;
+  font-weight: 900;
+  line-height: 1.4;
+  flex: 1;
+}
+
+.price-strip {
+  margin: 18px 0;
+  padding: 16px 22px;
+  display: flex;
+  align-items: baseline;
+  gap: 16px;
+  flex-wrap: wrap;
+  background: var(--white);
+  border: var(--bw) solid var(--ink);
+  border-radius: var(--r-m);
+  box-shadow: var(--shadow-s);
+}
+
+.escrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--green-deep);
+  background: #D6F2DF;
+  border: 1.5px solid var(--green);
+  padding: 4px 12px;
+  border-radius: 999px;
 }
 
 .meta-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 8px 16px;
-  color: var(--ink-soft);
-}
-
-.tag-row {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-
-.seller-panel {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 12px;
-  background: var(--paper-deep);
-  border: var(--bw) solid var(--ink);
-  border-radius: var(--r-s);
-}
-
-.seller-panel strong {
-  display: block;
-  margin-bottom: 5px;
-}
-
-.description {
   display: flex;
   flex-direction: column;
+  gap: 10px;
+  font-size: 14.5px;
+  margin-bottom: 20px;
+}
+
+.meta-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.meta-row .lab {
+  color: var(--ink-soft);
+  min-width: 68px;
+}
+
+.ai-tags {
+  display: flex;
+  flex-wrap: wrap;
   gap: 8px;
 }
 
-.description h2 {
-  font-size: 18px;
+.seller-card {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 16px 18px;
+  margin: 22px 0;
+  border: var(--bw) solid var(--ink);
+  border-radius: var(--r-m);
+  background: var(--paper-deep);
 }
 
-.description p {
-  white-space: pre-wrap;
+.seller-card__info {
+  flex: 1;
+  min-width: 0;
+}
+
+.seller-card__name {
+  font-weight: 900;
+  font-size: 16px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.seller-card__sub {
+  font-size: 12.5px;
   color: var(--ink-soft);
+  margin-top: 2px;
 }
 
-.location-line {
-  padding: 10px 12px;
-  border: var(--bw) dashed var(--ink);
-  border-radius: var(--r-s);
-  background: var(--paper);
-  font-weight: 700;
+.exp-bar {
+  margin-top: 7px;
+  height: 10px;
+  border: 1.5px solid var(--ink);
+  border-radius: 6px;
+  background: var(--white);
+  overflow: hidden;
+  max-width: 220px;
 }
 
-.action-row {
+.exp-bar i {
+  display: block;
+  height: 100%;
+  width: 62%;
+  background: repeating-linear-gradient(-45deg, var(--green) 0 8px, #4FBF82 8px 16px);
+}
+
+.desc-block {
+  padding: 22px 24px;
+  margin-bottom: 24px;
+}
+
+.desc-block h2 {
+  font-family: var(--font-display);
+  font-size: 20px;
+  letter-spacing: 1px;
+  margin-bottom: 10px;
+}
+
+.desc-block p {
+  font-size: 15px;
+  line-height: 1.9;
+  color: #3D372E;
+  white-space: pre-wrap;
+}
+
+.action-bar {
   display: flex;
   flex-wrap: wrap;
-  gap: var(--spacing-sm);
+  gap: 14px;
+}
+
+.action-bar .btn {
+  flex: 1;
+  min-width: 150px;
+}
+
+.escrow-note {
+  font-size: 12.5px;
+  margin-top: 12px;
 }
 
 .empty-panel {
@@ -361,8 +533,12 @@ onMounted(fetchDetail)
 }
 
 @media (max-width: 860px) {
-  .detail-grid {
+  .detail {
     grid-template-columns: 1fr;
+  }
+
+  .gallery {
+    position: static;
   }
 }
 </style>

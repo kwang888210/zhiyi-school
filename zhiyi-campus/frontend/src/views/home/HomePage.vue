@@ -1,54 +1,57 @@
 <template>
   <DefaultLayout>
     <div class="home-page">
-      <section class="hall-head">
-        <div>
-          <h1 class="page-title">商品大厅 <span class="stamp">MARKET</span></h1>
-          <p class="muted">按分类、价格和关键词快速找到校园里的靠谱闲置。</p>
+      <section class="hero">
+        <div class="hero__inner">
+          <div class="float-sticker fs-1">吉他 ¥260</div>
+          <div class="float-sticker fs-2">高数教材 ¥15</div>
+          <div class="float-sticker fs-3">iPad Air5 ¥2500</div>
+
+          <h1 class="rise">校园里的好东西<br>都在<span class="hl">这块布告栏</span>上</h1>
+          <p class="sub rise rise-1">AI 智能审核 · 平台担保交易 · 当面验货，放心买卖</p>
+
+          <form class="searchbar rise rise-2" role="search" @submit.prevent="handleSearch">
+            <input
+              v-model="filters.keyword"
+              type="search"
+              placeholder="搜一搜：iPad、高数教材、吉他、瑜伽垫…"
+              aria-label="搜索商品"
+            >
+            <button type="submit" :disabled="loading">
+              <el-icon><Search /></el-icon>
+              搜索
+            </button>
+          </form>
+
+          <div class="hot-words rise rise-3">
+            <span class="lab">热搜：</span>
+            <button class="tag" type="button" @click="quickSearch('iPad')">iPad</button>
+            <button class="tag" type="button" @click="quickSearch('四级真题')">四级真题</button>
+            <button class="tag" type="button" @click="quickSearch('小米充电宝')">小米充电宝</button>
+            <button class="tag" type="button" @click="quickSearch('Switch')">Switch</button>
+            <button class="tag" type="button" @click="quickSearch('考研政治')">考研政治</button>
+          </div>
         </div>
-        <router-link to="/publish" class="btn btn--primary">发布闲置</router-link>
       </section>
 
-      <section class="filter-panel">
-        <div class="search-line">
-          <el-input
-            v-model="filters.keyword"
-            clearable
-            size="large"
-            placeholder="搜索商品标题、描述或 AI 标签"
-            @keyup.enter="handleSearch"
-          >
-            <template #prefix>
-              <el-icon><Search /></el-icon>
-            </template>
-          </el-input>
-          <button class="btn btn--primary" :disabled="loading" @click="handleSearch">
-            <el-icon><Search /></el-icon>
-            搜索
-          </button>
-          <button class="btn" :disabled="loading" @click="resetFilters">
-            <el-icon><RefreshRight /></el-icon>
-            重置
-          </button>
-        </div>
-
-        <div class="category-row" aria-label="商品分类">
+      <div class="cat-row" role="tablist" aria-label="商品大类筛选">
           <button
-            class="category-pill"
+            class="cat-chip"
             :class="{ active: !filters.categoryId }"
             @click="selectCategory('')"
           >全部</button>
           <button
             v-for="category in categories"
             :key="category.id"
-            class="category-pill"
+            class="cat-chip"
             :class="{ active: filters.categoryId === category.id }"
             @click="selectCategory(category.id)"
           >
             <span>{{ category.icon }}</span>{{ category.name }}
           </button>
-        </div>
+      </div>
 
+      <section class="filter-panel">
         <div class="advanced-row">
           <el-select v-model="filters.type" placeholder="类型" clearable>
             <el-option label="出售" value="SELL" />
@@ -64,47 +67,48 @@
             <el-option label="价格从高到低" value="priceDesc" />
             <el-option label="浏览最多" value="views" />
           </el-select>
+          <button class="btn" :disabled="loading" @click="resetFilters">
+            <el-icon><RefreshRight /></el-icon>
+            重置筛选
+          </button>
         </div>
       </section>
 
-      <div class="content-grid">
-        <main class="market-main">
-          <div class="result-bar">
+      <div class="hall">
+        <main aria-label="商品列表">
+          <div class="sort-row">
+            <div class="sort-tabs" role="tablist" aria-label="排序方式">
+              <button :class="{ active: filters.sort === 'random' }" @click="filters.sort = 'random'">智能推荐</button>
+              <button :class="{ active: filters.sort === 'latest' }" @click="filters.sort = 'latest'">最新发布</button>
+              <button :class="{ active: filters.sort === 'priceAsc' }" @click="filters.sort = 'priceAsc'">价格 ↑</button>
+              <button :class="{ active: filters.sort === 'priceDesc' }" @click="filters.sort = 'priceDesc'">价格 ↓</button>
+            </div>
             <span class="muted">共 {{ total }} 件在售</span>
-            <button class="btn btn--sm" :disabled="loading" @click="fetchItems">
-              <el-icon><RefreshRight /></el-icon>
-              换一批
-            </button>
           </div>
 
           <el-skeleton v-if="loading && !items.length" :rows="8" animated />
 
-          <div v-else-if="items.length" class="item-grid">
+          <div v-else-if="items.length" class="goods-grid">
             <article
               v-for="item in items"
               :key="item.id"
-              class="card card--hover item-card"
+              class="goods-card rise"
               @click="goDetail(item.id)"
             >
-              <div class="item-card__image" :class="phClass(item.id)">
+              <div class="goods-card__img" :class="phClass(item.id)">
                 <img v-if="item.coverImage" :src="item.coverImage" :alt="item.title" />
-                <span class="badge item-card__type" :class="item.type === 'BUY' ? 'badge--buy' : 'badge--sell'">
+                <span class="badge goods-card__type" :class="item.type === 'BUY' ? 'badge--buy' : 'badge--sell'">
                   {{ item.type === 'BUY' ? '求购' : '出售' }}
                 </span>
               </div>
-              <div class="item-card__body">
-                <h2>{{ item.title }}</h2>
-                <div class="item-card__meta">
+              <div class="goods-card__body">
+                <h2 class="goods-card__title">{{ item.title }}</h2>
+                <div class="goods-card__meta">
                   <PriceTag :value="item.price" font-size="22px" />
-                  <span class="muted">{{ item.categoryName || '未分类' }}</span>
-                </div>
-                <div class="seller-line">
-                  <span class="seller-name">{{ item.publisherNickname || '同学' }}</span>
-                  <LevelBadge :level="item.publisherLevel || 1" />
-                </div>
-                <div class="item-card__stats">
-                  <span><el-icon><Star /></el-icon>{{ item.favoriteCount || 0 }}</span>
-                  <span><el-icon><View /></el-icon>{{ item.viewCount || 0 }}</span>
+                  <span class="goods-card__fav">
+                    <el-icon><StarFilled v-if="item.favoriteByCurrentUser" /><Star v-else /></el-icon>
+                    {{ item.favoriteCount || 0 }}
+                  </span>
                   <button
                     class="fav-button"
                     :class="{ active: item.favoriteByCurrentUser }"
@@ -115,6 +119,11 @@
                     <el-icon><StarFilled v-if="item.favoriteByCurrentUser" /><Star v-else /></el-icon>
                   </button>
                 </div>
+                <div class="goods-card__seller">
+                  <span class="seller-name">{{ item.publisherNickname || '同学' }}</span>
+                  <LevelBadge :level="item.publisherLevel || 1" />
+                  <span class="muted">浏览 {{ item.viewCount || 0 }}</span>
+                </div>
               </div>
             </article>
           </div>
@@ -122,6 +131,13 @@
           <div v-else class="empty-panel">
             <p class="muted">未找到相关商品</p>
             <button class="btn btn--primary" @click="resetFilters">清空筛选</button>
+          </div>
+
+          <div v-if="items.length" class="load-more">
+            <button class="btn btn--yellow btn--lg" :disabled="loading" @click="fetchItems">
+              再看一批
+              <el-icon><RefreshRight /></el-icon>
+            </button>
           </div>
 
           <el-pagination
@@ -134,29 +150,38 @@
           />
         </main>
 
-        <aside class="ranking-panel" aria-label="近期爆款榜单">
-          <div class="ranking-title">
-            <h2>近期爆款</h2>
-            <span class="badge badge--warn">TOP 10</span>
-          </div>
+        <aside>
+          <div class="card rank-card sticker-tilt-r" aria-label="近期爆款榜单">
+            <h3>近期爆款榜</h3>
+            <p class="muted rank-sub">按收藏数实时更新</p>
           <div v-if="ranking.length" class="ranking-list">
             <button
               v-for="(item, index) in ranking"
               :key="item.id"
-              class="ranking-row"
+              class="rank-item"
               @click="goDetail(item.id)"
             >
-              <span class="rank-no" :class="`rank-${index + 1}`">{{ index + 1 }}</span>
-              <span class="ranking-thumb" :class="phClass(item.id)">
+              <span class="rank-item__no">{{ index + 1 }}</span>
+              <span class="rank-item__thumb" :class="phClass(item.id)">
                 <img v-if="item.coverImage" :src="item.coverImage" :alt="item.title" />
               </span>
-              <span class="ranking-info">
-                <strong>{{ item.title }}</strong>
-                <small>{{ item.favoriteCount || 0 }} 人收藏</small>
+              <span class="rank-item__info">
+                <strong class="rank-item__title">{{ item.title }}</strong>
+                <small class="rank-item__sub">
+                  <span class="p">¥{{ Number(item.price || 0).toFixed(2) }}</span>
+                  <span>收藏 {{ item.favoriteCount || 0 }}</span>
+                </small>
               </span>
             </button>
           </div>
           <p v-else class="muted ranking-empty">暂无榜单数据</p>
+          </div>
+
+          <div class="publish-cta sticker-tilt">
+            <h4>宿舍角落在吃灰？</h4>
+            <p>发布 30 秒搞定，AI 自动打标签</p>
+            <router-link to="/publish" class="btn btn--yellow">去发布闲置</router-link>
+          </div>
         </aside>
       </div>
     </div>
@@ -167,7 +192,7 @@
 import { onMounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
-import { RefreshRight, Search, Star, StarFilled, View } from '@element-plus/icons-vue'
+import { RefreshRight, Search, Star, StarFilled } from '@element-plus/icons-vue'
 import DefaultLayout from '@/components/layout/DefaultLayout.vue'
 import LevelBadge from '@/components/common/LevelBadge.vue'
 import PriceTag from '@/components/common/PriceTag.vue'
@@ -236,6 +261,11 @@ function handleSearch() {
   fetchItems()
 }
 
+function quickSearch(keyword) {
+  filters.keyword = keyword
+  handleSearch()
+}
+
 function resetFilters() {
   filters.keyword = ''
   filters.categoryId = ''
@@ -288,138 +318,311 @@ onMounted(async () => {
 .home-page {
   display: flex;
   flex-direction: column;
-  gap: var(--spacing-lg);
+  gap: 0;
 }
 
-.hall-head {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-end;
-  gap: var(--spacing-md);
+.hero {
+  position: relative;
+  overflow: hidden;
+  width: 100vw;
+  margin-left: calc(50% - 50vw);
+  margin-top: calc(var(--spacing-lg) * -1);
+  border-bottom: var(--bw) solid var(--ink);
+  background: var(--paper-deep);
 }
 
-.filter-panel {
+.hero__inner {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 52px 20px 60px;
+  position: relative;
+  text-align: center;
+}
+
+.hero h1 {
+  font-family: var(--font-display);
+  font-size: clamp(32px, 5vw, 52px);
+  letter-spacing: 2px;
+  line-height: 1.25;
+}
+
+.hero h1 .hl {
+  display: inline-block;
+  padding: 0 10px;
+  background: var(--yellow);
+  border: var(--bw) solid var(--ink);
+  border-radius: var(--r-s);
+  box-shadow: var(--shadow-s);
+  transform: rotate(-1.5deg);
+}
+
+.hero p.sub {
+  margin-top: 12px;
+  color: var(--ink-soft);
+  font-size: 16px;
+}
+
+.searchbar {
+  max-width: 640px;
+  margin: 28px auto 0;
   display: flex;
-  flex-direction: column;
-  gap: var(--spacing-md);
-  padding: var(--spacing-md);
-  background: var(--white);
   border: var(--bw) solid var(--ink);
   border-radius: var(--r-m);
+  background: var(--white);
   box-shadow: var(--shadow-m);
-}
-
-.search-line,
-.advanced-row,
-.category-row,
-.result-bar {
-  display: flex;
-  align-items: center;
-  gap: var(--spacing-sm);
-}
-
-.search-line .el-input {
-  flex: 1;
-}
-
-.category-row {
-  flex-wrap: wrap;
-}
-
-.category-pill {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  border: var(--bw) solid var(--ink);
-  background: var(--paper-deep);
-  color: var(--ink);
-  border-radius: 999px;
-  padding: 7px 14px;
-  cursor: pointer;
-  font-weight: 700;
-  transition: transform .15s, box-shadow .15s, background-color .15s;
-}
-
-.category-pill:hover,
-.category-pill.active {
-  background: var(--yellow);
-  box-shadow: var(--shadow-s);
-  transform: translate(-1px, -1px);
-}
-
-.advanced-row {
-  flex-wrap: wrap;
-}
-
-.content-grid {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 280px;
-  gap: var(--spacing-lg);
-  align-items: start;
-}
-
-.market-main {
-  display: flex;
-  flex-direction: column;
-  gap: var(--spacing-md);
-}
-
-.result-bar {
-  justify-content: space-between;
-}
-
-.item-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
-  gap: var(--spacing-md);
-}
-
-.item-card {
   overflow: hidden;
 }
 
-.item-card__image {
-  position: relative;
-  aspect-ratio: 1 / 1;
-  border-bottom: var(--bw) solid var(--ink);
+.searchbar input {
+  flex: 1;
+  border: none;
+  padding: 16px 20px;
+  font-size: 16px;
+  font-family: inherit;
+  background: transparent;
+  min-width: 0;
 }
 
-.item-card__image img {
+.searchbar input:focus {
+  outline: none;
+}
+
+.searchbar button {
+  border: none;
+  border-left: var(--bw) solid var(--ink);
+  background: var(--primary);
+  color: var(--white);
+  font-weight: 700;
+  font-size: 16px;
+  padding: 0 30px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.searchbar button:hover {
+  background: var(--primary-deep);
+}
+
+.hot-words {
+  margin-top: 14px;
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.hot-words .lab {
+  font-size: 13px;
+  color: var(--ink-soft);
+  font-weight: 700;
+}
+
+.float-sticker {
+  position: absolute;
+  border: var(--bw) solid var(--ink);
+  border-radius: var(--r-s);
+  background: var(--white);
+  box-shadow: var(--shadow-s);
+  padding: 8px 14px;
+  font-weight: 700;
+  font-size: 14px;
+  pointer-events: none;
+}
+
+.fs-1 { top: 44px; left: 4%; transform: rotate(-7deg); }
+.fs-2 { top: 130px; right: 5%; transform: rotate(5deg); }
+.fs-3 { bottom: 30px; left: 10%; transform: rotate(4deg); background: var(--yellow); }
+
+.cat-row {
+  display: flex;
+  gap: 12px;
+  overflow-x: auto;
+  padding: 22px 0 8px;
+  scrollbar-width: none;
+}
+
+.cat-row::-webkit-scrollbar {
+  display: none;
+}
+
+.cat-chip {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+  padding: 9px 18px;
+  border: var(--bw) solid var(--ink);
+  border-radius: 999px;
+  background: var(--white);
+  font-weight: 700;
+  font-size: 14px;
+  cursor: pointer;
+  box-shadow: 2px 2px 0 var(--ink);
+  transition: all .18s;
+}
+
+.cat-chip:hover {
+  transform: translate(-1px, -1px);
+  box-shadow: 4px 4px 0 var(--ink);
+  background: var(--paper-deep);
+}
+
+.cat-chip.active {
+  background: var(--ink);
+  color: var(--paper);
+}
+
+.filter-panel {
+  margin: 12px 0 18px;
+}
+
+.advanced-row {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  flex-wrap: wrap;
+}
+
+.hall {
+  display: grid;
+  grid-template-columns: 1fr 300px;
+  gap: 28px;
+  margin-top: 10px;
+  align-items: start;
+}
+
+.sort-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 18px;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.sort-tabs {
+  display: flex;
+  border: var(--bw) solid var(--ink);
+  border-radius: var(--r-s);
+  overflow: hidden;
+  background: var(--white);
+}
+
+.sort-tabs button {
+  border: none;
+  background: transparent;
+  padding: 8px 16px;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  color: var(--ink-soft);
+  border-right: 1.5px solid #E5DCC9;
+}
+
+.sort-tabs button:last-child {
+  border-right: none;
+}
+
+.sort-tabs button:hover {
+  color: var(--ink);
+  background: var(--paper-deep);
+}
+
+.sort-tabs button.active {
+  background: var(--yellow);
+  color: var(--ink);
+}
+
+.goods-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 22px;
+}
+
+.goods-card {
+  background: var(--white);
+  border: var(--bw) solid var(--ink);
+  border-radius: var(--r-m);
+  overflow: hidden;
+  cursor: pointer;
+  box-shadow: var(--shadow-s);
+  transition: transform .2s, box-shadow .2s;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+}
+
+.goods-card:hover {
+  transform: translate(-3px, -3px);
+  box-shadow: var(--shadow-l);
+}
+
+.goods-card__img {
+  position: relative;
+  aspect-ratio: 4 / 3;
+  border-bottom: var(--bw) solid var(--ink);
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+}
+
+.goods-card__img img {
   width: 100%;
   height: 100%;
   object-fit: cover;
 }
 
-.item-card__type {
+.goods-card__type {
   position: absolute;
   top: 10px;
   left: 10px;
 }
 
-.item-card__body {
-  padding: 13px 14px 14px;
+.goods-card__body {
+  padding: 13px 15px 15px;
   display: flex;
   flex-direction: column;
-  gap: 9px;
+  gap: 8px;
+  flex: 1;
 }
 
-.item-card h2 {
+.goods-card__title {
   font-size: 15px;
+  font-weight: 700;
   line-height: 1.45;
-  min-height: 43px;
-  overflow: hidden;
   display: -webkit-box;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
+  overflow: hidden;
+  min-height: 2.9em;
 }
 
-.item-card__meta,
-.seller-line,
-.item-card__stats {
+.goods-card__meta {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: var(--spacing-sm);
+  margin-top: auto;
+}
+
+.goods-card__fav {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--ink-soft);
+  font-size: 13px;
+}
+
+.goods-card__seller {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 12.5px;
+  color: var(--ink-soft);
+  border-top: 1.5px dashed #E0D6C2;
+  padding-top: 9px;
 }
 
 .seller-name {
@@ -427,14 +630,6 @@ onMounted(async () => {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-
-.item-card__stats span {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  color: var(--ink-soft);
-  font-size: 13px;
 }
 
 .fav-button {
@@ -452,94 +647,147 @@ onMounted(async () => {
   background: var(--yellow);
 }
 
-.ranking-panel {
+.rank-card {
   position: sticky;
   top: 84px;
-  display: flex;
-  flex-direction: column;
-  gap: var(--spacing-md);
-  padding: var(--spacing-md);
-  background: var(--paper-deep);
-  border: var(--bw) solid var(--ink);
-  border-radius: var(--r-m);
-  box-shadow: var(--shadow-m);
+  padding: 20px;
 }
 
-.ranking-title {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-
-.ranking-title h2 {
+.rank-card h3 {
   font-family: var(--font-display);
-  font-size: 25px;
+  font-size: 22px;
+  letter-spacing: 1px;
+  margin-bottom: 4px;
+}
+
+.rank-sub {
+  font-size: 12.5px;
+  margin-bottom: 8px;
 }
 
 .ranking-list {
   display: flex;
   flex-direction: column;
-  gap: 10px;
 }
 
-.ranking-row {
-  display: grid;
-  grid-template-columns: 30px 46px 1fr;
+.rank-item {
+  display: flex;
   align-items: center;
-  gap: 10px;
-  text-align: left;
-  border: var(--bw) solid var(--ink);
-  border-radius: var(--r-s);
-  background: var(--white);
-  padding: 8px;
+  gap: 12px;
+  padding: 12px 0;
+  border: none;
+  border-bottom: 1.5px dashed #E0D6C2;
+  background: transparent;
   cursor: pointer;
+  text-align: left;
+  border-radius: 8px;
+  transition: background .15s;
 }
 
-.rank-no {
-  width: 26px;
-  height: 26px;
+.rank-item:hover {
+  background: var(--paper-deep);
+}
+
+.rank-item:last-child {
+  border-bottom: none;
+}
+
+.rank-item__no {
+  width: 30px;
+  height: 30px;
+  flex-shrink: 0;
   display: grid;
   place-items: center;
+  font-family: var(--font-display);
+  font-size: 16px;
   border: var(--bw) solid var(--ink);
-  border-radius: 50%;
-  background: var(--paper-deep);
-  font-weight: 900;
+  border-radius: 8px;
+  background: var(--white);
 }
 
-.rank-1 { background: var(--yellow); }
-.rank-2 { background: var(--paper); }
-.rank-3 { background: var(--primary); color: var(--white); }
+.rank-item:nth-child(1) .rank-item__no {
+  background: var(--yellow);
+  box-shadow: 2px 2px 0 var(--ink);
+}
 
-.ranking-thumb {
+.rank-item:nth-child(2) .rank-item__no { background: #DCD6CB; }
+.rank-item:nth-child(3) .rank-item__no { background: #F0C9A8; }
+
+.rank-item__thumb {
   width: 46px;
   height: 46px;
-  border: var(--bw) solid var(--ink);
+  border: 1.5px solid var(--ink);
   border-radius: var(--r-s);
   overflow: hidden;
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
 }
 
-.ranking-thumb img {
+.rank-item__thumb img {
   width: 100%;
   height: 100%;
   object-fit: cover;
 }
 
-.ranking-info {
+.rank-item__info {
   min-width: 0;
+  flex: 1;
   display: flex;
   flex-direction: column;
 }
 
-.ranking-info strong {
+.rank-item__title {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 13px;
+  font-size: 13.5px;
+  font-weight: 700;
 }
 
-.ranking-info small,
+.rank-item__sub {
+  font-size: 12px;
+  color: var(--ink-soft);
+  display: flex;
+  gap: 10px;
+  margin-top: 2px;
+}
+
+.rank-item__sub .p {
+  color: var(--primary);
+  font-weight: 700;
+}
+
+.publish-cta {
+  margin-top: 24px;
+  padding: 24px 20px;
+  text-align: center;
+  background: var(--ink);
+  color: var(--paper);
+  border-radius: var(--r-m);
+  border: var(--bw) solid var(--ink);
+  box-shadow: var(--shadow-m);
+}
+
+.publish-cta h4 {
+  font-family: var(--font-display);
+  font-size: 21px;
+  letter-spacing: 1px;
+}
+
+.publish-cta p {
+  font-size: 13px;
+  opacity: .75;
+  margin: 6px 0 16px;
+}
+
 .ranking-empty {
   color: var(--ink-soft);
+}
+
+.load-more {
+  text-align: center;
+  margin: 36px 0 10px;
 }
 
 .empty-panel {
@@ -555,21 +803,40 @@ onMounted(async () => {
 }
 
 @media (max-width: 980px) {
-  .content-grid {
+  .hall {
     grid-template-columns: 1fr;
   }
 
-  .ranking-panel {
+  .rank-card {
     position: static;
   }
 }
 
+@media (max-width: 900px) {
+  .float-sticker {
+    display: none;
+  }
+}
+
+@media (max-width: 700px) {
+  .goods-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 14px;
+  }
+}
+
 @media (max-width: 680px) {
-  .hall-head,
-  .search-line,
+  .searchbar,
   .advanced-row {
     align-items: stretch;
     flex-direction: column;
+  }
+
+  .searchbar button {
+    min-height: 48px;
+    justify-content: center;
+    border-left: none;
+    border-top: var(--bw) solid var(--ink);
   }
 }
 </style>

@@ -1,56 +1,70 @@
 <template>
   <DefaultLayout>
     <div class="chat-list-page">
-      <section class="chat-head">
-        <div>
-          <h1 class="page-title">消息 <span class="stamp">CHAT</span></h1>
-          <p class="muted">买卖双方站内沟通，打开会话后自动标记已读。</p>
-        </div>
-        <button class="btn btn--primary" :disabled="serviceLoading" @click="contactService">
-          <el-icon><Service /></el-icon>
-          联系客服
-        </button>
-      </section>
-
-      <el-skeleton v-if="loading" :rows="8" animated />
-
-      <section v-else-if="conversations.length" class="conversation-list">
-        <button
-          v-for="conversation in conversations"
-          :key="conversation.conversationId"
-          class="card card--hover conversation-row"
-          @click="openConversation(conversation)"
-        >
-          <UserAvatar
-            :nickname="conversation.peer?.nickname || '同学'"
-            :user-id="conversation.peer?.id || 0"
-            size="m"
-          />
-          <div class="conversation-main">
-            <div class="conversation-title">
-              <strong>{{ conversation.peer?.nickname || '同学' }}</strong>
-              <LevelBadge :level="conversation.peer?.level || 1" />
-              <span class="time">{{ formatTime(conversation.lastMessageTime) }}</span>
-            </div>
-            <p>{{ conversation.lastMessage }}</p>
-            <small v-if="conversation.relatedItem">关联商品：{{ conversation.relatedItem.title }}</small>
+      <section class="chat-shell rise">
+        <aside class="conv-list" aria-label="会话列表">
+          <div class="conv-list__head">
+            <h1>消息</h1>
+            <button class="btn btn--primary btn--sm" :disabled="serviceLoading" @click="contactService">
+              <el-icon><Service /></el-icon>
+              联系客服
+            </button>
           </div>
-          <span v-if="conversation.unreadCount > 0" class="unread-dot">{{ conversation.unreadCount }}</span>
-        </button>
-      </section>
 
-      <div v-else class="empty-panel">
-        <p class="muted">还没有聊天记录</p>
-        <router-link to="/" class="btn btn--primary">去大厅看看</router-link>
-      </div>
+          <div class="conv-search">
+            <el-icon><Search /></el-icon>
+            <input v-model="keyword" type="search" placeholder="搜索会话…" aria-label="搜索会话">
+          </div>
+
+          <el-skeleton v-if="loading" :rows="8" animated />
+
+          <div v-else-if="filteredConversations.length" class="conv-items">
+            <button
+              v-for="conversation in filteredConversations"
+              :key="conversation.conversationId"
+              class="conv-item"
+              @click="openConversation(conversation)"
+            >
+              <UserAvatar
+                :nickname="conversation.peer?.nickname || '同学'"
+                :user-id="conversation.peer?.id || 0"
+                size="m"
+              />
+              <div class="conv-item__body">
+                <div class="conv-item__top">
+                  <span class="conv-item__name">
+                    {{ conversation.peer?.nickname || '同学' }}
+                    <LevelBadge :level="conversation.peer?.level || 1" />
+                  </span>
+                  <span class="conv-item__time">{{ formatTime(conversation.lastMessageTime) }}</span>
+                </div>
+                <div class="conv-item__preview">{{ conversation.lastMessage }}</div>
+                <div v-if="conversation.relatedItem" class="conv-item__goods">关联商品：{{ conversation.relatedItem.title }}</div>
+              </div>
+              <span v-if="conversation.unreadCount > 0" class="conv-item__unread">{{ conversation.unreadCount }}</span>
+            </button>
+          </div>
+
+          <div v-else class="conv-empty">
+            <p class="muted">还没有聊天记录</p>
+            <router-link to="/" class="btn btn--primary btn--sm">去大厅看看</router-link>
+          </div>
+        </aside>
+
+        <section class="chat-placeholder">
+          <h2>选择一个会话</h2>
+          <p class="muted">从左侧打开聊天，或联系平台客服。</p>
+          <button class="btn btn--yellow" :disabled="serviceLoading" @click="contactService">联系客服</button>
+        </section>
+      </section>
     </div>
   </DefaultLayout>
 </template>
 
 <script setup>
-import { onMounted, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
-import { Service } from '@element-plus/icons-vue'
+import { Search, Service } from '@element-plus/icons-vue'
 import DefaultLayout from '@/components/layout/DefaultLayout.vue'
 import LevelBadge from '@/components/common/LevelBadge.vue'
 import UserAvatar from '@/components/common/UserAvatar.vue'
@@ -60,6 +74,17 @@ const router = useRouter()
 const conversations = ref([])
 const loading = ref(false)
 const serviceLoading = ref(false)
+const keyword = ref('')
+
+const filteredConversations = computed(() => {
+  const value = keyword.value.trim()
+  if (!value) return conversations.value
+  return conversations.value.filter((conversation) => {
+    return (conversation.peer?.nickname || '').includes(value)
+      || (conversation.lastMessage || '').includes(value)
+      || (conversation.relatedItem?.title || '').includes(value)
+  })
+})
 
 function formatTime(value) {
   if (!value) return ''
@@ -107,108 +132,190 @@ onMounted(fetchConversations)
 
 <style scoped>
 .chat-list-page {
-  display: flex;
-  flex-direction: column;
-  gap: var(--spacing-lg);
+  margin: 4px 0;
 }
 
-.chat-head {
-  display: flex;
-  align-items: flex-end;
-  justify-content: space-between;
-  gap: var(--spacing-md);
-}
-
-.conversation-list {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
-.conversation-row {
-  width: 100%;
+.chat-shell {
   display: grid;
-  grid-template-columns: auto 1fr auto;
-  align-items: center;
-  gap: var(--spacing-md);
-  padding: 14px 16px;
-  text-align: left;
-  color: var(--ink);
+  grid-template-columns: 360px 1fr;
+  border: var(--bw) solid var(--ink);
+  border-radius: var(--r-l);
+  background: var(--white);
+  box-shadow: var(--shadow-l);
+  overflow: hidden;
+  min-height: 620px;
 }
 
-.conversation-main {
+.conv-list {
+  border-right: var(--bw) solid var(--ink);
+  display: flex;
+  flex-direction: column;
+  background: var(--paper);
+}
+
+.conv-list__head {
+  padding: 18px 20px 12px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.conv-list__head h1 {
+  font-family: var(--font-display);
+  font-size: 23px;
+  letter-spacing: 1px;
+}
+
+.conv-search {
+  margin: 8px 20px 12px;
+  position: relative;
+}
+
+.conv-search input {
+  width: 100%;
+  padding: 9px 14px 9px 36px;
+  font-size: 13.5px;
+  font-family: inherit;
+  border: var(--bw) solid var(--ink);
+  border-radius: 999px;
+  background: var(--white);
+}
+
+.conv-search input:focus {
+  outline: none;
+  box-shadow: 2px 2px 0 var(--ink);
+}
+
+.conv-search .el-icon {
+  position: absolute;
+  left: 12px;
+  top: 50%;
+  translate: 0 -50%;
+  width: 16px;
+  height: 16px;
+  color: var(--ink-soft);
+}
+
+.conv-items {
+  overflow-y: auto;
+  flex: 1;
+}
+
+.conv-item {
+  width: 100%;
+  display: flex;
+  gap: 12px;
+  padding: 13px 20px;
+  cursor: pointer;
+  border: none;
+  border-bottom: 1.5px dashed #E0D6C2;
+  background: transparent;
+  color: var(--ink);
+  text-align: left;
+  transition: background .15s;
+  position: relative;
+}
+
+.conv-item:hover {
+  background: var(--paper-deep);
+}
+
+.conv-item__body {
+  flex: 1;
   min-width: 0;
 }
 
-.conversation-title {
+.conv-item__top {
   display: flex;
-  align-items: center;
+  justify-content: space-between;
+  align-items: baseline;
   gap: 8px;
 }
 
-.conversation-title .time {
-  margin-left: auto;
-  color: var(--ink-soft);
-  font-size: 13px;
+.conv-item__name {
+  min-width: 0;
+  font-weight: 800;
+  font-size: 14.5px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
 }
 
-.conversation-main p,
-.conversation-main small {
-  display: block;
+.conv-item__time {
+  flex-shrink: 0;
+  font-size: 11.5px;
+  color: var(--ink-soft);
+}
+
+.conv-item__preview,
+.conv-item__goods {
+  white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
-.conversation-main p {
-  margin-top: 4px;
+.conv-item__preview {
+  font-size: 13px;
   color: var(--ink-soft);
+  margin-top: 3px;
 }
 
-.conversation-main small {
-  margin-top: 2px;
+.conv-item__goods {
+  font-size: 12px;
   color: var(--green-deep);
 }
 
-.unread-dot {
-  min-width: 24px;
-  height: 24px;
-  padding: 0 7px;
-  border-radius: 12px;
+.conv-item__unread {
+  position: absolute;
+  right: 18px;
+  bottom: 14px;
+  min-width: 19px;
+  height: 19px;
+  padding: 0 5px;
+  border-radius: 10px;
+  background: var(--red);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 800;
   display: grid;
   place-items: center;
-  border: var(--bw) solid var(--ink);
-  background: var(--red);
-  color: var(--white);
-  font-size: 12px;
-  font-weight: 900;
+  border: 1.5px solid var(--ink);
 }
 
-.empty-panel {
-  min-height: 300px;
-  display: grid;
-  place-items: center;
+.conv-empty,
+.chat-placeholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
   justify-content: center;
   gap: var(--spacing-md);
-  background: var(--white);
-  border: var(--bw) solid var(--ink);
-  border-radius: var(--r-m);
-  box-shadow: var(--shadow-m);
+  min-height: 320px;
+  padding: 24px;
+  text-align: center;
+}
+
+.chat-placeholder {
+  background: var(--paper-deep);
+}
+
+.chat-placeholder h2 {
+  font-family: var(--font-display);
+  font-size: 30px;
+  letter-spacing: 1px;
 }
 
 @media (max-width: 640px) {
-  .chat-head {
-    align-items: stretch;
-    flex-direction: column;
+  .chat-shell {
+    grid-template-columns: 1fr;
   }
 
-  .conversation-row {
-    grid-template-columns: auto 1fr;
+  .conv-list {
+    border-right: none;
   }
 
-  .unread-dot {
-    grid-column: 2;
-    justify-self: start;
+  .chat-placeholder {
+    display: none;
   }
 }
 </style>

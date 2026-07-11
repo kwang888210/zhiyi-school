@@ -3,67 +3,77 @@
     <div class="chat-detail-page">
       <button class="btn btn--sm" @click="router.push('/chat')">返回消息列表</button>
 
-      <section class="chat-shell">
-        <header class="chat-header">
-          <div class="peer-line">
+      <section class="chat-shell rise">
+        <div class="chat-pane">
+          <header class="chat-pane__head">
             <UserAvatar :nickname="thread?.peer?.nickname || '同学'" :user-id="thread?.peer?.id || 0" size="m" />
             <div>
-              <strong>{{ thread?.peer?.nickname || '会话' }}</strong>
-              <LevelBadge :level="thread?.peer?.level || 1" show-title />
-            </div>
-          </div>
-          <span class="muted">轮询同步中</span>
-        </header>
-
-        <router-link
-          v-if="thread?.relatedItem"
-          class="related-item"
-          :to="`/item/${thread.relatedItem.id}`"
-        >
-          <span class="related-thumb" :class="phClass(thread.relatedItem.id)">
-            <img v-if="thread.relatedItem.coverImage" :src="thread.relatedItem.coverImage" :alt="thread.relatedItem.title" />
-          </span>
-          <span class="related-info">
-            <strong>{{ thread.relatedItem.title }}</strong>
-            <PriceTag :value="thread.relatedItem.price" font-size="18px" />
-          </span>
-        </router-link>
-
-        <main ref="messagePanel" class="message-panel">
-          <el-skeleton v-if="loading && !messages.length" :rows="8" animated />
-          <template v-else-if="messages.length">
-            <div
-              v-for="message in messages"
-              :key="message.id"
-              class="message-row"
-              :class="{ mine: message.mine }"
-            >
-              <div class="message-bubble">
-                <p>{{ message.content }}</p>
-                <time>{{ formatTime(message.createdAt) }}</time>
+              <div class="nm">
+                {{ thread?.peer?.nickname || '会话' }}
+                <LevelBadge :level="thread?.peer?.level || 1" show-title />
               </div>
+              <div class="st"><i></i>轮询同步中</div>
             </div>
-          </template>
-          <div v-else class="empty-chat">
-            <p class="muted">还没有消息，打个招呼吧。</p>
-          </div>
-        </main>
+          </header>
 
-        <footer class="composer">
-          <el-input
-            v-model="draft"
-            type="textarea"
-            :rows="3"
-            maxlength="1000"
-            show-word-limit
-            resize="none"
-            placeholder="输入消息，Enter 发送，Shift + Enter 换行"
-            @keydown.enter.exact.prevent="handleSend"
-          />
-          <button class="btn btn--primary" :disabled="sending || !draft.trim()" @click="handleSend">
-            发送
-          </button>
-        </footer>
+          <router-link
+            v-if="thread?.relatedItem"
+            class="related-item"
+            :to="`/item/${thread.relatedItem.id}`"
+          >
+            <span class="related-item__thumb" :class="phClass(thread.relatedItem.id)">
+              <img v-if="thread.relatedItem.coverImage" :src="thread.relatedItem.coverImage" :alt="thread.relatedItem.title" />
+            </span>
+            <span class="related-item__info">
+              <strong>{{ thread.relatedItem.title }}</strong>
+              <PriceTag :value="thread.relatedItem.price" font-size="18px" />
+            </span>
+            <span class="btn btn--sm btn--primary">查看商品</span>
+          </router-link>
+
+          <main ref="messagePanel" class="msg-flow">
+            <el-skeleton v-if="loading && !messages.length" :rows="8" animated />
+            <template v-else-if="messages.length">
+              <span class="msg-day">当前会话</span>
+              <div
+                v-for="message in messages"
+                :key="message.id"
+                class="msg"
+                :class="message.mine ? 'msg--out' : 'msg--in'"
+              >
+                <UserAvatar
+                  :nickname="message.mine ? '我' : (thread?.peer?.nickname || '同学')"
+                  :user-id="message.mine ? 0 : (thread?.peer?.id || 0)"
+                  size="s"
+                />
+                <div>
+                  <div class="msg__bubble">{{ message.content }}</div>
+                  <div class="msg__time">{{ formatTime(message.createdAt) }}</div>
+                </div>
+              </div>
+            </template>
+            <div v-else class="empty-chat">
+              <p class="muted">还没有消息，打个招呼吧。</p>
+            </div>
+          </main>
+
+          <footer class="chat-input">
+            <el-input
+              v-model="draft"
+              type="textarea"
+              :rows="3"
+              maxlength="1000"
+              show-word-limit
+              resize="none"
+              placeholder="输入消息，Enter 发送，Shift + Enter 换行"
+              @keydown.enter.exact.prevent="handleSend"
+            />
+            <button class="btn btn--green" :disabled="sending || !draft.trim()" @click="handleSend">
+              发送
+            </button>
+          </footer>
+          <div class="poll-note"><i></i>每 2.5 秒自动刷新新消息</div>
+        </div>
       </section>
     </div>
   </DefaultLayout>
@@ -160,114 +170,162 @@ onUnmounted(() => {
 }
 
 .chat-shell {
-  min-height: 680px;
-  display: grid;
-  grid-template-rows: auto auto minmax(0, 1fr) auto;
-  background: var(--white);
   border: var(--bw) solid var(--ink);
-  border-radius: var(--r-m);
-  box-shadow: var(--shadow-m);
+  border-radius: var(--r-l);
+  background: var(--white);
+  box-shadow: var(--shadow-l);
   overflow: hidden;
+  min-height: 680px;
 }
 
-.chat-header {
+.chat-pane {
+  min-height: 680px;
   display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: var(--spacing-md);
-  padding: var(--spacing-md);
-  border-bottom: var(--bw) solid var(--ink);
+  flex-direction: column;
   background: var(--paper-deep);
+  min-width: 0;
 }
 
-.peer-line {
+.chat-pane__head {
   display: flex;
   align-items: center;
   gap: 12px;
+  padding: 14px 22px;
+  background: var(--white);
+  border-bottom: var(--bw) solid var(--ink);
 }
 
-.peer-line strong {
-  display: block;
-  margin-bottom: 5px;
+.nm {
+  font-weight: 900;
+  font-size: 16px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.st {
+  font-size: 12px;
+  color: var(--green-deep);
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.st i,
+.poll-note i {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--green);
+  display: inline-block;
+  border: 1px solid var(--ink);
 }
 
 .related-item {
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 10px var(--spacing-md);
-  border-bottom: var(--bw) solid var(--ink);
-  background: var(--paper);
+  margin: 14px 22px 0;
+  background: var(--white);
+  border: var(--bw) solid var(--ink);
+  border-radius: var(--r-m);
+  padding: 10px 14px;
+  box-shadow: var(--shadow-s);
 }
 
-.related-thumb {
-  width: 54px;
-  height: 54px;
-  border: var(--bw) solid var(--ink);
+.related-item__thumb {
+  width: 46px;
+  height: 46px;
+  border: 1.5px solid var(--ink);
   border-radius: var(--r-s);
   overflow: hidden;
   flex-shrink: 0;
 }
 
-.related-thumb img {
+.related-item__thumb img {
   width: 100%;
   height: 100%;
   object-fit: cover;
 }
 
-.related-info {
+.related-item__info {
+  flex: 1;
   min-width: 0;
   display: flex;
   flex-direction: column;
 }
 
-.related-info strong {
+.related-item__info strong {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.message-panel {
-  min-height: 0;
+.msg-flow {
+  flex: 1;
   overflow-y: auto;
-  padding: var(--spacing-lg);
-  background: var(--paper);
-}
-
-.message-row {
+  padding: 20px 22px;
   display: flex;
-  justify-content: flex-start;
-  margin-bottom: 12px;
+  flex-direction: column;
+  gap: 16px;
 }
 
-.message-row.mine {
-  justify-content: flex-end;
-}
-
-.message-bubble {
-  max-width: min(620px, 78%);
-  padding: 10px 12px;
+.msg-day {
+  align-self: center;
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--ink-soft);
   background: var(--white);
+  border: 1.5px solid var(--ink);
+  padding: 2px 14px;
+  border-radius: 999px;
+}
+
+.msg {
+  display: flex;
+  gap: 10px;
+  max-width: 78%;
+}
+
+.msg__bubble {
+  padding: 10px 15px;
+  font-size: 14.5px;
+  line-height: 1.6;
   border: var(--bw) solid var(--ink);
-  border-radius: var(--r-s);
-  box-shadow: var(--shadow-s);
-}
-
-.message-row.mine .message-bubble {
-  background: var(--blue);
-  color: var(--white);
-}
-
-.message-bubble p {
+  border-radius: var(--r-m);
+  background: var(--white);
+  box-shadow: 2px 2px 0 var(--ink);
   white-space: pre-wrap;
   word-break: break-word;
 }
 
-.message-bubble time {
-  display: block;
-  margin-top: 5px;
-  font-size: 12px;
-  opacity: .72;
+.msg__time {
+  font-size: 11px;
+  color: var(--ink-soft);
+  margin-top: 4px;
+}
+
+.msg--in {
+  align-self: flex-start;
+}
+
+.msg--in .msg__bubble {
+  border-bottom-left-radius: 4px;
+}
+
+.msg--out {
+  align-self: flex-end;
+  flex-direction: row-reverse;
+}
+
+.msg--out .msg__bubble {
+  background: var(--green);
+  color: var(--white);
+  border-bottom-right-radius: 4px;
+}
+
+.msg--out .msg__time {
   text-align: right;
 }
 
@@ -277,30 +335,57 @@ onUnmounted(() => {
   place-items: center;
 }
 
-.composer {
-  display: grid;
-  grid-template-columns: 1fr auto;
-  gap: var(--spacing-md);
-  align-items: end;
-  padding: var(--spacing-md);
-  border-top: var(--bw) solid var(--ink);
+.chat-input {
+  display: flex;
+  gap: 12px;
+  padding: 16px 22px;
   background: var(--white);
+  border-top: var(--bw) solid var(--ink);
+  align-items: flex-end;
+}
+
+.chat-input :deep(.el-textarea__inner) {
+  resize: none;
+  min-height: 46px !important;
+  max-height: 120px;
+  padding: 11px 16px;
+  font-size: 14.5px;
+  font-family: inherit;
+  border: var(--bw) solid var(--ink);
+  border-radius: var(--r-m);
+  background: var(--paper);
+  box-shadow: none;
+}
+
+.chat-input :deep(.el-textarea__inner:focus) {
+  box-shadow: var(--shadow-s);
+}
+
+.poll-note {
+  text-align: center;
+  font-size: 11.5px;
+  color: var(--ink-soft);
+  background: var(--white);
+  padding: 6px 0 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
 }
 
 @media (max-width: 640px) {
-  .chat-shell {
+  .chat-shell,
+  .chat-pane {
     min-height: 620px;
   }
 
-  .chat-header,
-  .composer {
-    grid-template-columns: 1fr;
-  }
-
-  .composer {
-    display: flex;
+  .chat-input {
     flex-direction: column;
     align-items: stretch;
+  }
+
+  .msg {
+    max-width: 92%;
   }
 }
 </style>

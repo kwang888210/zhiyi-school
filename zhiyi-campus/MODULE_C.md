@@ -96,9 +96,9 @@
 
 ```bash
 # 1. 建库（会 DROP 重建；本机 MySQL 路径含空格时建议用 cmd）
-cmd /c 'C:\Progra~1\MySQL\MYSQLS~1.6\bin\mysql.exe -u root -p576067 --default-character-set=utf8mb4 < "E:\Project\zhiyi-school\zhiyi_campus_init.sql"'
+cmd /c '"C:\Program Files\MySQL\MySQL Server 9.6\bin\mysql.exe" -u root -p --default-character-set=utf8mb4 < "E:\Project\zhiyi-school\zhiyi_campus_init.sql"'
 
-# 2. 后端（application.yml 用 MYSQL_PASSWORD 覆盖默认密码）
+# 2. 后端（MySQL 密码与 JWT 密钥通过环境变量 MYSQL_PASSWORD/JWT_SECRET 提供）
 cd zhiyi-campus/backend
 mvn spring-boot:run
 
@@ -115,7 +115,7 @@ npm run dev
 
 测试账号：
 
-- 管理员：`admin / admin123`
+- 管理员：初始化后请在本地重置密码，不在文档中写明文口令
 - 普通用户：注册页自助注册
 
 ## 七、验证记录

@@ -142,6 +142,7 @@
 
 ```bash
 # 后端
+# MySQL 密码与 JWT 密钥通过环境变量 MYSQL_PASSWORD/JWT_SECRET 提供
 cd zhiyi-campus/backend
 mvn spring-boot:run
 
@@ -157,7 +158,7 @@ npm run dev
 
 测试账号：
 
-- 管理员：`admin / admin123`
+- 管理员：初始化后请在本地重置密码，不在文档中写明文口令
 - 普通用户：注册页自助注册
 
 ## 七、验证记录
