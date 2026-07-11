@@ -66,11 +66,12 @@
 </template>
 
 <script setup>
-import { computed } from 'vue'
+import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { isLoggedIn, isAdmin, getNickname, getUserId } from '@/utils/auth'
 import { useUserStore } from '@/stores/user'
 import UserAvatar from '@/components/common/UserAvatar.vue'
+import { getUnreadCount } from '@/api/chat'
 
 const route = useRoute()
 const router = useRouter()
@@ -81,8 +82,8 @@ const admin = computed(() => isAdmin())
 const nickname = computed(() => userStore.user?.nickname || getNickname() || '?')
 const userId = computed(() => userStore.user?.id || getUserId() || 0)
 
-// 未读消息数（C 模块聊天接口就绪后接入轮询）
-const unreadCount = 0
+const unreadCount = ref(0)
+let unreadTimer = null
 
 function isActive(prefix) {
   if (prefix === '/') return route.path === '/'
@@ -97,6 +98,28 @@ function handleLogout() {
   userStore.logout()
   router.push('/login')
 }
+
+async function fetchUnreadCount() {
+  if (!loggedIn.value) {
+    unreadCount.value = 0
+    return
+  }
+  try {
+    const res = await getUnreadCount()
+    unreadCount.value = Number(res.data || 0)
+  } catch {
+    unreadCount.value = 0
+  }
+}
+
+onMounted(() => {
+  fetchUnreadCount()
+  unreadTimer = window.setInterval(fetchUnreadCount, 5000)
+})
+
+onUnmounted(() => {
+  if (unreadTimer) window.clearInterval(unreadTimer)
+})
 </script>
 
 <style scoped>
