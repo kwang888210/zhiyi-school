@@ -3,22 +3,35 @@
     <div class="home-page">
       <section class="hero">
         <div class="hero__inner">
-          <div class="float-sticker fs-1">吉他 ¥260</div>
-          <div class="float-sticker fs-2">高数教材 ¥15</div>
-          <div class="float-sticker fs-3">iPad Air5 ¥2500</div>
+          <div class="float-sticker fs-1" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="#F5562E" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>
+            吉他 ¥260
+          </div>
+          <div class="float-sticker fs-2" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="#3B7BD8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 7h8M8 11h8M8 15h5"/></svg>
+            高数教材 ¥15
+          </div>
+          <div class="float-sticker fs-3" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="#26221C" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="2" width="14" height="20" rx="2"/><path d="M12 18h.01"/></svg>
+            iPad Air5 ¥2000
+          </div>
 
           <h1 class="rise">校园里的好东西<br>都在<span class="hl">这块布告栏</span>上</h1>
           <p class="sub rise rise-1">AI 智能审核 · 平台担保交易 · 当面验货，放心买卖</p>
 
           <form class="searchbar rise rise-2" role="search" @submit.prevent="handleSearch">
-            <input
-              v-model="filters.keyword"
-              type="search"
-              placeholder="搜一搜：iPad、高数教材、吉他、瑜伽垫…"
-              aria-label="搜索商品"
-            >
+            <span class="searchbar__icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg></span>
+            <input v-model="filters.keyword" type="search" placeholder="搜一搜：iPad、高数教材、吉他、瑜伽垫…" aria-label="搜索商品">
+            <button
+              v-if="filters.keyword"
+              class="searchbar__clear"
+              type="button"
+              title="清空搜索"
+              aria-label="清空搜索"
+              @click="clearKeyword"
+            ><svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round"><path d="m6 6 12 12M18 6 6 18"/></svg></button>
             <button type="submit" :disabled="loading">
-              <el-icon><Search /></el-icon>
+              <svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
               搜索
             </button>
           </form>
@@ -39,7 +52,7 @@
             class="cat-chip"
             :class="{ active: !filters.categoryId }"
             @click="selectCategory('')"
-          >全部</button>
+          ><CategoryIcon name="全部" />全部</button>
           <button
             v-for="category in categories"
             :key="category.id"
@@ -47,29 +60,35 @@
             :class="{ active: filters.categoryId === category.id }"
             @click="selectCategory(category.id)"
           >
-            <span>{{ category.icon }}</span>{{ category.name }}
+            <CategoryIcon :name="category.name" />{{ category.name }}
           </button>
       </div>
 
       <section class="filter-panel">
+        <div class="filter-panel__title">
+          <span class="filter-panel__stamp"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5h16l-6 7v5l-4 2v-7Z"/></svg></span>
+          <div><strong>精细筛选</strong><small>缩小范围，快点找到那件好物</small></div>
+        </div>
         <div class="advanced-row">
-          <el-select v-model="filters.type" placeholder="类型" clearable>
-            <el-option label="出售" value="SELL" />
-            <el-option label="求购" value="BUY" />
-          </el-select>
-          <el-input-number v-model="filters.minPrice" :min="0" :precision="2" placeholder="最低价" />
-          <span class="muted">至</span>
-          <el-input-number v-model="filters.maxPrice" :min="0" :precision="2" placeholder="最高价" />
-          <el-select v-model="filters.sort" placeholder="排序">
-            <el-option label="智能乱序" value="random" />
-            <el-option label="最新发布" value="latest" />
-            <el-option label="价格从低到高" value="priceAsc" />
-            <el-option label="价格从高到低" value="priceDesc" />
-            <el-option label="浏览最多" value="views" />
-          </el-select>
-          <button class="btn" :disabled="loading" @click="resetFilters">
-            <el-icon><RefreshRight /></el-icon>
-            重置筛选
+          <label class="filter-field">
+            <span>发布类型</span>
+            <select v-model="filters.type" class="select">
+              <option value="">全部类型</option>
+              <option value="SELL">出售</option>
+              <option value="BUY">求购</option>
+            </select>
+          </label>
+          <fieldset class="filter-field price-field">
+            <legend>价格区间</legend>
+            <div class="price-range">
+              <span>¥</span><input v-model.number="filters.minPrice" type="number" min="0" step="1" placeholder="最低价">
+              <i>—</i>
+              <span>¥</span><input v-model.number="filters.maxPrice" type="number" min="0" step="1" placeholder="最高价">
+            </div>
+          </fieldset>
+          <button class="btn filter-reset" type="button" :disabled="loading" @click="resetFilters">
+            <svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 11a8 8 0 1 0-2.34 5.66"/><path d="M20 4v7h-7"/></svg>
+            重置
           </button>
         </div>
       </section>
@@ -83,7 +102,7 @@
               <button :class="{ active: filters.sort === 'priceAsc' }" @click="filters.sort = 'priceAsc'">价格 ↑</button>
               <button :class="{ active: filters.sort === 'priceDesc' }" @click="filters.sort = 'priceDesc'">价格 ↓</button>
             </div>
-            <span class="muted">共 {{ total }} 件在售</span>
+            <span class="muted goods-total">共 <strong>{{ total }}</strong> 件在售好物</span>
           </div>
 
           <el-skeleton v-if="loading && !items.length" :rows="8" animated />
@@ -106,7 +125,7 @@
                 <div class="goods-card__meta">
                   <PriceTag :value="item.price" font-size="22px" />
                   <span class="goods-card__fav">
-                    <el-icon><StarFilled v-if="item.favoriteByCurrentUser" /><Star v-else /></el-icon>
+                    <svg class="heart-icon" viewBox="0 0 24 24" :fill="item.favoriteByCurrentUser ? 'currentColor' : 'none'" stroke="currentColor" stroke-width="2"><path d="M19 14c1.5-1.5 3-3.2 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.8 0-3 .5-4.5 2C10.5 3.5 9.3 3 7.5 3A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4 3 5.5l7 7Z"/></svg>
                     {{ item.favoriteCount || 0 }}
                   </span>
                   <button
@@ -116,7 +135,7 @@
                     @click.stop="handleFavorite(item)"
                     :title="item.favoriteByCurrentUser ? '取消收藏' : '收藏商品'"
                   >
-                    <el-icon><StarFilled v-if="item.favoriteByCurrentUser" /><Star v-else /></el-icon>
+                    <svg class="heart-icon" viewBox="0 0 24 24" :fill="item.favoriteByCurrentUser ? 'currentColor' : 'none'" stroke="currentColor" stroke-width="2"><path d="M19 14c1.5-1.5 3-3.2 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.8 0-3 .5-4.5 2C10.5 3.5 9.3 3 7.5 3A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4 3 5.5l7 7Z"/></svg>
                   </button>
                 </div>
                 <div class="goods-card__seller">
@@ -136,7 +155,7 @@
           <div v-if="items.length" class="load-more">
             <button class="btn btn--yellow btn--lg" :disabled="loading" @click="fetchItems">
               再看一批
-              <el-icon><RefreshRight /></el-icon>
+              <svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 11a8 8 0 1 0-2.34 5.66"/><path d="M20 4v7h-7"/></svg>
             </button>
           </div>
 
@@ -192,18 +211,28 @@
 import { onMounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
-import { RefreshRight, Search, Star, StarFilled } from '@element-plus/icons-vue'
 import DefaultLayout from '@/components/layout/DefaultLayout.vue'
+import CategoryIcon from '@/components/common/CategoryIcon.vue'
 import LevelBadge from '@/components/common/LevelBadge.vue'
 import PriceTag from '@/components/common/PriceTag.vue'
 import { getCategories, getItemList, getItemRanking, toggleFavorite } from '@/api/item'
 import { isLoggedIn } from '@/utils/auth'
 
 const PH = ['ph-a', 'ph-b', 'ph-c', 'ph-d', 'ph-e', 'ph-f']
+const FALLBACK_CATEGORIES = [
+  { id: 1, name: '数码电子' },
+  { id: 2, name: '教材书籍' },
+  { id: 3, name: '服饰鞋包' },
+  { id: 4, name: '生活日用' },
+  { id: 5, name: '运动娱乐' },
+  { id: 6, name: '零食饮品' },
+  { id: 7, name: '学习用品' },
+  { id: 8, name: '其他' },
+]
 
 const router = useRouter()
 const route = useRoute()
-const categories = ref([])
+const categories = ref(FALLBACK_CATEGORIES)
 const items = ref([])
 const ranking = ref([])
 const page = ref(1)
@@ -236,8 +265,12 @@ function buildParams() {
 }
 
 async function fetchCategories() {
-  const res = await getCategories()
-  categories.value = res.data || []
+  try {
+    const res = await getCategories()
+    if (Array.isArray(res.data) && res.data.length) categories.value = res.data
+  } catch {
+    categories.value = FALLBACK_CATEGORIES
+  }
 }
 
 async function fetchRanking() {
@@ -263,6 +296,11 @@ function handleSearch() {
 
 function quickSearch(keyword) {
   filters.keyword = keyword
+  handleSearch()
+}
+
+function clearKeyword() {
+  filters.keyword = ''
   handleSearch()
 }
 
@@ -366,22 +404,62 @@ onMounted(async () => {
   max-width: 640px;
   margin: 28px auto 0;
   display: flex;
+  align-items: stretch;
   border: var(--bw) solid var(--ink);
   border-radius: var(--r-m);
   background: var(--white);
   box-shadow: var(--shadow-m);
   overflow: hidden;
+  transition: transform .18s, box-shadow .18s;
+}
+
+.searchbar:focus-within {
+  transform: translate(-2px, -2px);
+  box-shadow: 7px 7px 0 var(--ink);
+}
+
+.searchbar__icon {
+  width: 50px;
+  flex: 0 0 50px;
+  display: grid;
+  place-items: center;
+  color: var(--ink-soft);
+  font-size: 20px;
+}
+
+.searchbar__icon svg { width: 21px; height: 21px; }
+
+.ui-icon {
+  width: 18px;
+  height: 18px;
+  flex: 0 0 18px;
 }
 
 .searchbar input {
   flex: 1;
   border: none;
-  padding: 16px 20px;
+  padding: 16px 6px 16px 0;
   font-size: 16px;
   font-family: inherit;
   background: transparent;
   min-width: 0;
 }
+
+.searchbar input::-webkit-search-cancel-button { display: none; }
+
+.searchbar__clear {
+  width: 42px;
+  flex: 0 0 42px;
+  display: grid;
+  place-items: center;
+  border: none;
+  background: var(--white);
+  color: var(--ink-soft);
+  cursor: pointer;
+  font-size: 18px;
+}
+
+.searchbar__clear:hover { color: var(--primary); }
 
 .searchbar input:focus {
   outline: none;
@@ -400,6 +478,15 @@ onMounted(async () => {
   align-items: center;
   gap: 8px;
 }
+
+.searchbar .searchbar__clear {
+  padding: 0;
+  border-left: 0;
+  background: var(--white);
+  color: var(--ink-soft);
+}
+
+.searchbar .searchbar__clear:hover { background: var(--paper-deep); color: var(--primary); }
 
 .searchbar button:hover {
   background: var(--primary-deep);
@@ -421,6 +508,9 @@ onMounted(async () => {
 
 .float-sticker {
   position: absolute;
+  display: flex;
+  align-items: center;
+  gap: 7px;
   border: var(--bw) solid var(--ink);
   border-radius: var(--r-s);
   background: var(--white);
@@ -429,11 +519,37 @@ onMounted(async () => {
   font-weight: 700;
   font-size: 14px;
   pointer-events: none;
+  will-change: translate;
 }
 
-.fs-1 { top: 44px; left: 4%; transform: rotate(-7deg); }
-.fs-2 { top: 130px; right: 5%; transform: rotate(5deg); }
-.fs-3 { bottom: 30px; left: 10%; transform: rotate(4deg); background: var(--yellow); }
+.float-sticker svg { width: 20px; height: 20px; flex: 0 0 20px; }
+
+.fs-1 {
+  top: 44px;
+  left: 4%;
+  transform: rotate(-7deg);
+  animation: sticker-bob 4s ease-in-out infinite;
+}
+
+.fs-2 {
+  top: 130px;
+  right: 5%;
+  transform: rotate(5deg);
+  animation: sticker-bob 4.6s .5s ease-in-out infinite;
+}
+
+.fs-3 {
+  bottom: 30px;
+  left: 10%;
+  transform: rotate(4deg);
+  background: var(--yellow);
+  animation: sticker-bob 5s 1s ease-in-out infinite;
+}
+
+@keyframes sticker-bob {
+  0%, 100% { translate: 0 0; }
+  50% { translate: 0 -9px; }
+}
 
 .cat-row {
   display: flex;
@@ -463,6 +579,8 @@ onMounted(async () => {
   transition: all .18s;
 }
 
+.cat-chip svg { width: 17px; height: 17px; flex: 0 0 17px; }
+
 .cat-chip:hover {
   transform: translate(-1px, -1px);
   box-shadow: 4px 4px 0 var(--ink);
@@ -474,15 +592,133 @@ onMounted(async () => {
   color: var(--paper);
 }
 
+.cat-chip.active svg { stroke: var(--paper); }
+
 .filter-panel {
-  margin: 12px 0 18px;
+  margin: 16px 0 22px;
+  padding: 16px 18px;
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 22px;
+  border: var(--bw) solid var(--ink);
+  border-radius: var(--r-m);
+  background: var(--paper-deep);
+  box-shadow: var(--shadow-s);
+}
+
+.filter-panel__title {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  flex-shrink: 0;
+}
+
+.filter-panel__stamp {
+  width: 40px;
+  height: 40px;
+  display: grid;
+  place-items: center;
+  border: var(--bw) solid var(--ink);
+  border-radius: var(--r-s);
+  background: var(--yellow);
+  box-shadow: 2px 2px 0 var(--ink);
+  transform: rotate(-4deg);
+  font-size: 19px;
+}
+
+.filter-panel__stamp svg { width: 21px; height: 21px; }
+
+.filter-panel__title strong {
+  display: block;
+  font-family: var(--font-display);
+  font-size: 19px;
+  line-height: 1.2;
+}
+
+.filter-panel__title small {
+  display: block;
+  margin-top: 2px;
+  color: var(--ink-soft);
+  font-size: 11px;
 }
 
 .advanced-row {
   display: flex;
-  align-items: center;
-  gap: var(--spacing-sm);
+  align-items: flex-end;
+  justify-content: flex-end;
+  gap: 10px;
   flex-wrap: wrap;
+  flex: 1;
+}
+
+.filter-field {
+  min-width: 132px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.filter-field > span,
+.filter-field legend {
+  display: block;
+  margin-bottom: 4px;
+  padding: 0;
+  color: var(--ink-soft);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.filter-field .select {
+  height: 40px;
+  padding-top: 7px;
+  padding-bottom: 7px;
+  font-size: 13px;
+  box-shadow: none;
+}
+
+.price-field { min-width: 280px; }
+
+.price-range {
+  height: 40px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 10px;
+  border: var(--bw) solid var(--ink);
+  border-radius: var(--r-s);
+  background: var(--white);
+}
+
+.price-range:focus-within { box-shadow: var(--shadow-s); }
+
+.price-range span {
+  color: var(--primary);
+  font-weight: 900;
+}
+
+.price-range i {
+  color: var(--ink-soft);
+  font-style: normal;
+}
+
+.price-range input {
+  width: 78px;
+  min-width: 0;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: var(--ink);
+  font-family: inherit;
+  font-size: 13px;
+}
+
+.price-range input::-webkit-inner-spin-button { display: none; }
+
+.filter-reset {
+  height: 40px;
+  padding: 7px 14px;
+  box-shadow: 2px 2px 0 var(--ink);
 }
 
 .hall {
@@ -501,6 +737,13 @@ onMounted(async () => {
   flex-wrap: wrap;
   gap: 12px;
 }
+
+.goods-total {
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+.goods-total strong { color: var(--primary); }
 
 .sort-tabs {
   display: flex;
@@ -615,6 +858,8 @@ onMounted(async () => {
   font-size: 13px;
 }
 
+.heart-icon { width: 17px; height: 17px; flex: 0 0 17px; }
+
 .goods-card__seller {
   display: flex;
   align-items: center;
@@ -645,6 +890,7 @@ onMounted(async () => {
 
 .fav-button.active {
   background: var(--yellow);
+  color: var(--red);
 }
 
 .rank-card {
@@ -810,6 +1056,13 @@ onMounted(async () => {
   .rank-card {
     position: static;
   }
+
+  .filter-panel {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .advanced-row { justify-content: flex-start; }
 }
 
 @media (max-width: 900px) {
@@ -826,17 +1079,19 @@ onMounted(async () => {
 }
 
 @media (max-width: 680px) {
-  .searchbar,
-  .advanced-row {
-    align-items: stretch;
-    flex-direction: column;
-  }
-
-  .searchbar button {
-    min-height: 48px;
-    justify-content: center;
-    border-left: none;
-    border-top: var(--bw) solid var(--ink);
-  }
+  .hero__inner { padding: 38px 16px 42px; }
+  .hero h1 { font-size: 34px; }
+  .hero p.sub { font-size: 14px; }
+  .searchbar { margin-top: 22px; }
+  .searchbar__icon { width: 42px; flex-basis: 42px; }
+  .searchbar input { padding-right: 2px; font-size: 14px; }
+  .searchbar > button[type="submit"] { padding: 0 16px; font-size: 14px; }
+  .searchbar > button[type="submit"] .ui-icon { display: none; }
+  .filter-panel { padding: 14px; }
+  .advanced-row { display: grid; grid-template-columns: 1fr auto; }
+  .filter-field { min-width: 0; }
+  .price-field { min-width: 0; grid-column: 1 / -1; grid-row: 2; }
+  .price-range input { width: 100%; }
+  .filter-reset { grid-column: 2; grid-row: 1; }
 }
 </style>

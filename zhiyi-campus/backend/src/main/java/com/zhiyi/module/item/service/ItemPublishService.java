@@ -31,6 +31,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
 
@@ -110,6 +111,43 @@ public class ItemPublishService {
         item.setIsDeleted(false);
         itemMapper.insert(item);
         return marketplaceService.getSnapshot(item.getId(), publisherId);
+    }
+
+    @Transactional
+    public ItemCardVO update(Long publisherId, Long itemId, PublishItemDTO dto) {
+        Item item = itemMapper.selectById(itemId);
+        if (item == null) {
+            throw new BusinessException(ResultCode.NOT_FOUND, "商品不存在");
+        }
+        if (!Objects.equals(item.getPublisherId(), publisherId)) {
+            throw new BusinessException(ResultCode.FORBIDDEN, "只能编辑自己发布的商品");
+        }
+        if (!List.of("ON_SALE", "OFF_SHELF").contains(item.getStatus())) {
+            throw new BusinessException(ResultCode.BAD_REQUEST, "交易中或已售出的商品不能编辑");
+        }
+
+        Category category = categoryMapper.selectById(dto.getCategoryId());
+        if (category == null) {
+            throw new BusinessException(ResultCode.NOT_FOUND, "商品分类不存在");
+        }
+        validateImages(dto.getImages());
+        ReviewResult review = review(dto, category);
+        if (review.violation()) {
+            saveViolationReport(publisherId, dto, review, false);
+            throw new BusinessException(ResultCode.AI_VIOLATION, review.reason());
+        }
+
+        item.setType(dto.getType());
+        item.setTitle(dto.getTitle().trim());
+        item.setDescription(dto.getDescription().trim());
+        item.setCategoryId(dto.getCategoryId());
+        item.setPrice(dto.getPrice().setScale(2));
+        item.setImages(toJson(dto.getImages()));
+        item.setAiTags(toJson(review.tags()));
+        item.setAiReviewed(true);
+        item.setTradeLocation(dto.getTradeLocation().trim());
+        itemMapper.updateById(item);
+        return marketplaceService.getSnapshot(itemId, publisherId);
     }
 
     private void validateImages(List<String> images) {

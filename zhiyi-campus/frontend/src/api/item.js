@@ -32,6 +32,14 @@ export function publishItem(data) {
   return request.post('/item/publish', data)
 }
 
+export function getOwnItem(id) {
+  return request.get(`/item/my-items/${id}`)
+}
+
+export function updateItem(id, data) {
+  return request.put(`/item/${id}`, data)
+}
+
 export function getMyItems(params) {
   return request.get('/item/my-items', { params })
 }

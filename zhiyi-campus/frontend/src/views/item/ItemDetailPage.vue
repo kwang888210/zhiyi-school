@@ -217,9 +217,9 @@ async function contactSeller() {
   try {
     const res = await startItemConversation(item.value.id)
     router.push({
-      name: 'ChatDetail',
-      params: { conversationId: res.data.conversationId },
+      path: '/chat',
       query: {
+        conversationId: res.data.conversationId,
         peerId: res.data.peer?.id,
         relatedItemId: res.data.relatedItem?.id,
       },

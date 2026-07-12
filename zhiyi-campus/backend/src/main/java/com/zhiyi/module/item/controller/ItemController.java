@@ -49,6 +49,19 @@ public class ItemController {
         return Result.ok("发布成功", itemPublishService.publish(userId, dto));
     }
 
+    @GetMapping("/my-items/{id}")
+    public Result<ItemCardVO> ownItem(@RequestAttribute("userId") Long userId,
+                                      @PathVariable Long id) {
+        return Result.ok(marketplaceService.getOwnItem(userId, id));
+    }
+
+    @PutMapping("/{id}")
+    public Result<ItemCardVO> update(@RequestAttribute("userId") Long userId,
+                                     @PathVariable Long id,
+                                     @Valid @RequestBody PublishItemDTO dto) {
+        return Result.ok("修改成功", itemPublishService.update(userId, id, dto));
+    }
+
     @GetMapping("/list")
     public Result<IPage<ItemCardVO>> list(@RequestParam(required = false) String keyword,
                                           @RequestParam(required = false) Long categoryId,

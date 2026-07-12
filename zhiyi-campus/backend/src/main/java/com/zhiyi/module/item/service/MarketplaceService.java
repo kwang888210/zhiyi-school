@@ -101,6 +101,11 @@ public class MarketplaceService {
         return toItemCards(List.of(item), currentUserId).get(0);
     }
 
+    public ItemCardVO getOwnItem(Long userId, Long itemId) {
+        Item item = requireOwnItem(userId, itemId);
+        return toItemCards(List.of(item), userId).get(0);
+    }
+
     @Transactional
     public FavoriteToggleVO toggleFavorite(Long userId, Long itemId) {
         Item item = itemMapper.selectById(itemId);
