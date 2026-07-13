@@ -6,8 +6,38 @@ export function getItemList(params) {
   return request.get('/item/list', { params })
 }
 
+export function searchItems(params) {
+  return request.get('/item/search', { params })
+}
+
 export function getItemDetail(id) {
   return request.get(`/item/${id}`)
+}
+
+export function getCategories() {
+  return request.get('/category/list')
+}
+
+export function getItemRanking(params) {
+  return request.get('/item/ranking', { params })
+}
+
+export function uploadItemImage(file) {
+  const formData = new FormData()
+  formData.append('file', file)
+  return request.post('/item/upload-image', formData)
+}
+
+export function publishItem(data) {
+  return request.post('/item/publish', data)
+}
+
+export function getOwnItem(id) {
+  return request.get(`/item/my-items/${id}`)
+}
+
+export function updateItem(id, data) {
+  return request.put(`/item/${id}`, data)
 }
 
 export function getMyItems(params) {

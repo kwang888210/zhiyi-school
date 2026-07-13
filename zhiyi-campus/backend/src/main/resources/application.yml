@@ -48,12 +48,12 @@ zhiyi:
   upload-path: ./uploads                     # 图片存储目录
   # JWT 配置
   jwt:
-    secret: zhiyi-campus-2026-secret-key-change-in-production
+    secret: ${JWT_SECRET:zhiyi-campus-2026-secret-key-change-in-production}
     expiration: 86400000                     # 24小时（毫秒）
   # AI 接口（通义千问 / 文心一言 等，按实际情况填写）
   ai:
     api-url: https://your-ai-api-endpoint
-    api-key: your-api-key
+    api-key: ${AI_API_KEY:your-api-key}
     timeout: 5000                            # 超时时间（毫秒）
   # ── 模块一：认证与风控 ──
   auth:

@@ -105,7 +105,7 @@ node load-test.mjs — GET /api/user/profile（走 JWT 全链路 + DB 查询）
 
 1. `sys_user` 新增 `token_version INT NOT NULL DEFAULT 0`（Token 版本）。
 2. 新增 `exp_log` 表（经验流水，见 `zhiyi_campus_init.sql` 2.10）。
-3. 管理员初始密码占位哈希替换为真实 BCrypt：账号 `admin` / 密码 `admin123`（密保答案 `admin`）。
+3. 管理员初始密码占位哈希替换为 BCrypt 哈希；初始化后请在本地重置管理员密码，不在文档中写明文口令。
 4. `sys_user.status` 新增取值 `CANCELLED`（已注销，软注销；无需改表结构，仅枚举语义扩展）。
 
 ## 六、本地启动
@@ -114,11 +114,11 @@ node load-test.mjs — GET /api/user/profile（走 JWT 全链路 + DB 查询）
 # 1. 建库（会 DROP 重建）
 mysql -u root -p --default-character-set=utf8mb4 < zhiyi_campus_init.sql
 
-# 2. 后端（MySQL 密码不同时用环境变量覆盖：MYSQL_PASSWORD=xxx）
+# 2. 后端（MySQL 密码与 JWT 密钥通过环境变量 MYSQL_PASSWORD/JWT_SECRET 提供）
 cd zhiyi-campus/backend && mvn spring-boot:run      # → :8080
 
 # 3. 前端
 cd zhiyi-campus/frontend && npm install && npm run dev   # → :3000（/api 自动代理）
 ```
 
-测试账号：`admin / admin123`（管理员）；注册页可自助注册普通用户。
+测试账号：管理员账号初始化后请本地重置密码；注册页可自助注册普通用户。

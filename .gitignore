@@ -7,3 +7,5 @@ zhiyi-campus/backend/target/
 zhiyi-campus/frontend/node_modules/
 zhiyi-campus/frontend/dist/
 zhiyi-campus/backend/uploads/
+zhiyi-campus/backend/*-dev.log
+zhiyi-campus/frontend/*-dev.log

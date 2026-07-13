@@ -35,6 +35,15 @@
               <span class="badge" :class="statusBadge(item.status)">{{ statusText(item.status) }}</span>
             </div>
             <div class="item-row__actions">
+              <router-link
+                v-if="item.status === 'ON_SALE' || item.status === 'OFF_SHELF'"
+                :to="`/item/${item.id}/edit`"
+                class="btn btn--sm btn--yellow edit-button"
+                title="编辑商品"
+              >
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
+                编辑
+              </router-link>
               <button v-if="item.status === 'ON_SALE'" class="btn btn--sm" :disabled="acting" @click="handleOffShelf(item)">下架</button>
               <button v-if="item.status === 'OFF_SHELF'" class="btn btn--sm btn--green" :disabled="acting" @click="handleRelist(item)">重新上架</button>
               <button v-if="item.status === 'ON_SALE' || item.status === 'OFF_SHELF'" class="btn btn--sm btn--danger" :disabled="acting" @click="handleDelete(item)">删除</button>
@@ -200,6 +209,7 @@ onMounted(fetchItems)
 .item-row__meta { display: flex; gap: 14px; font-size: 13px; margin-top: 6px; }
 
 .item-row__actions { display: flex; gap: 8px; }
+.edit-button svg { width: 15px; height: 15px; flex: 0 0 15px; }
 
 .empty-card {
   padding: 48px;

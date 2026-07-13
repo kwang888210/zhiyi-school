@@ -33,6 +33,12 @@ const routes = [
     meta: { title: '商品详情' },
   },
   {
+    path: '/item/:id/edit',
+    name: 'EditItem',
+    component: () => import('@/views/item/PublishItemPage.vue'),
+    meta: { title: '编辑商品', requireAuth: true },
+  },
+  {
     path: '/publish',
     name: 'PublishItem',
     component: () => import('@/views/item/PublishItemPage.vue'),
@@ -68,9 +74,14 @@ const routes = [
   },
   {
     path: '/chat/:conversationId',
-    name: 'ChatDetail',
-    component: () => import('@/views/chat/ChatDetailPage.vue'),
-    meta: { title: '对话', requireAuth: true },
+    redirect: to => ({
+      path: '/chat',
+      query: {
+        conversationId: to.params.conversationId,
+        peerId: to.query.peerId,
+        relatedItemId: to.query.relatedItemId,
+      },
+    }),
   },
 
   // ── 钱包 & 订单（模块四）──
