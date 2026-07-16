@@ -1,28 +1,29 @@
-package com.zhiyi.module.admin.entity;
+package com.zhiyi.module.admin.vo;
 
-import com.baomidou.mybatisplus.annotation.*;
 import lombok.Data;
+
 import java.time.LocalDateTime;
 
+/**
+ * 违规记录列表项
+ */
 @Data
-@TableName("violation_report")
-public class ViolationReport {
-    @TableId(type = IdType.AUTO)
+public class ViolationVO {
     private Long id;
     private Long userId;
+    private String reporterName;        // 发布者昵称
     private String originalTitle;
     private String originalDescription;
     private String violationType;
     private String violationReason;
     private String aiTags;
-    private Long itemId;            // 关联商品ID（AI拦截时创建的 OFF_SHELF 商品）
-    private String status;          // PENDING / CONFIRMED / DISMISSED
+    private String status;              // PENDING / CONFIRMED / DISMISSED
     private Long handlerId;
+    private String handlerName;         // 处理管理员昵称
     private String handleNote;
+    private Long itemId;                // 关联商品 ID（管理员可直接下架）
+    private String itemStatus;          // 商品当前状态
     private Boolean aiReviewError;
-
-    @TableField(fill = FieldFill.INSERT)
     private LocalDateTime createdAt;
-
     private LocalDateTime handledAt;
 }
