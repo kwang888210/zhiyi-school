@@ -123,6 +123,12 @@ const routes = [
     component: () => import('@/views/admin/ChatPage.vue'),
     meta: { title: '客服收件箱', requireAuth: true, requireAdmin: true },
   },
+  {
+    path: '/admin/manage',
+    name: 'AdminManage',
+    component: () => import('@/views/admin/ManagePage.vue'),
+    meta: { title: '内容管理', requireAuth: true, requireAdmin: true },
+  },
 
   // ── 兜底：404 ──
   {
