@@ -1,5 +1,7 @@
 package com.zhiyi.module.admin.dto;
 
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
@@ -20,6 +22,8 @@ public class ConfirmViolationDTO {
     private String reason;
 
     /** 限时封禁天数（type = BAN_TEMP 时必填，1-365） */
+    @Min(value = 1, message = "封禁天数最少为1天")
+    @Max(value = 365, message = "封禁天数最多为365天")
     private Integer banDays;
 
     /** 处理备注 */

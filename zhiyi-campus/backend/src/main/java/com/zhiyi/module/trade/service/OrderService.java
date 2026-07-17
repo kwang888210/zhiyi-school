@@ -33,6 +33,9 @@ import java.util.stream.Collectors;
  * 所有写操作都在 @Transactional 中完成，保证：
  * 余额变动 + 订单状态 + 流水写入 + 商品状态联动 + 经验值结算
  * 要么全部成功，要么全部回滚。
+ *
+ * 并发安全：confirmReceipt / cancelOrder 的状态更新使用
+ * WHERE status = 'WAITING_MEET' 原子条件，防止重复执行。
  */
 @Slf4j
 @Service
@@ -62,11 +65,14 @@ public class OrderService {
         if (!"ON_SALE".equals(item.getStatus())) {
             throw new BusinessException(ResultCode.ITEM_NOT_ON_SALE);
         }
+        if (!"SELL".equals(item.getType())) {
+            throw new BusinessException(ResultCode.BAD_REQUEST, "仅支持购买出售类型的商品，求购请直接联系发布者");
+        }
         if (item.getPublisherId().equals(buyerId)) {
             throw new BusinessException(ResultCode.BAD_REQUEST, "不能购买自己发布的商品");
         }
 
-        // 2. 同一商品不能有进行中的订单
+        // 2. 同一商品不能有进行中的订单（首次检查）
         Long activeCount = orderMapper.selectCount(
                 new LambdaQueryWrapper<TradeOrder>()
                         .eq(TradeOrder::getItemId, item.getId())
@@ -79,6 +85,9 @@ public class OrderService {
 
         // 3. 检查余额
         SysUser buyer = sysUserMapper.selectById(buyerId);
+        if (buyer == null) {
+            throw new BusinessException(ResultCode.USER_NOT_FOUND);
+        }
         if (buyer.getWalletBalance().compareTo(price) < 0) {
             throw new BusinessException(ResultCode.BALANCE_NOT_ENOUGH);
         }
@@ -92,10 +101,19 @@ public class OrderService {
             throw new BusinessException(ResultCode.BALANCE_NOT_ENOUGH);
         }
 
-        // 5. 回读最新余额
+        // 5. 二次检查：扣款后再次确认没有并发创建了同一商品的活跃订单
+        Long recheckCount = orderMapper.selectCount(
+                new LambdaQueryWrapper<TradeOrder>()
+                        .eq(TradeOrder::getItemId, item.getId())
+                        .eq(TradeOrder::getStatus, "WAITING_MEET"));
+        if (recheckCount > 0) {
+            throw new BusinessException(ResultCode.CONFLICT, "该商品已被他人抢先下单");
+        }
+
+        // 6. 回读最新余额
         SysUser buyerAfter = sysUserMapper.selectById(buyerId);
 
-        // 6. 创建订单
+        // 7. 创建订单
         TradeOrder order = new TradeOrder();
         order.setItemId(item.getId());
         order.setBuyerId(buyerId);
@@ -104,7 +122,7 @@ public class OrderService {
         order.setStatus("WAITING_MEET");
         orderMapper.insert(order);
 
-        // 7. 买家支出流水
+        // 8. 买家支出流水
         WalletLog paymentLog = new WalletLog();
         paymentLog.setUserId(buyerId);
         paymentLog.setType("PAYMENT");
@@ -114,14 +132,18 @@ public class OrderService {
         paymentLog.setRemark("购买商品：" + item.getTitle());
         walletLogMapper.insert(paymentLog);
 
-        // 8. 商品标记交易中
+        // 9. 商品标记交易中
         item.setStatus("PENDING");
         itemMapper.updateById(item);
+
+        // 10. 获取卖家昵称作为对的显示方
+        SysUser seller = sysUserMapper.selectById(item.getPublisherId());
+        String sellerNickname = seller != null ? seller.getNickname() : null;
 
         log.info("订单创建成功 orderId={} buyer={} seller={} price={}",
                 order.getId(), buyerId, item.getPublisherId(), price);
 
-        return toVO(order, item, buyer.getNickname(), null);
+        return toVO(order, item, sellerNickname, null);
     }
 
     // ================================================================
@@ -130,6 +152,8 @@ public class OrderService {
 
     /**
      * 买家确认收货：订单完成 → 卖家收款 → 双方加经验 → 商品标记 SOLD
+     *
+     * 使用原子 UPDATE（WHERE status = 'WAITING_MEET'）防止并发重复打款。
      */
     @Transactional(rollbackFor = Exception.class)
     public OrderVO confirmReceipt(Long orderId, Long buyerId) {
@@ -138,17 +162,19 @@ public class OrderService {
         if (order == null) {
             throw new BusinessException(ResultCode.NOT_FOUND, "订单不存在");
         }
-        if (!"WAITING_MEET".equals(order.getStatus())) {
-            throw new BusinessException(ResultCode.ORDER_STATUS_ERROR);
-        }
         if (!order.getBuyerId().equals(buyerId)) {
             throw new BusinessException(ResultCode.FORBIDDEN, "只有买家才能确认收货");
         }
 
-        // 2. 更新订单状态
-        order.setStatus("COMPLETED");
-        order.setCompletedAt(LocalDateTime.now());
-        orderMapper.updateById(order);
+        // 2. 原子更新订单状态 —— 只有 WAITING_MEET → COMPLETED 才生效
+        LambdaUpdateWrapper<TradeOrder> completeWrapper = new LambdaUpdateWrapper<>();
+        completeWrapper.set(TradeOrder::getStatus, "COMPLETED")
+                       .set(TradeOrder::getCompletedAt, LocalDateTime.now())
+                       .eq(TradeOrder::getId, orderId)
+                       .eq(TradeOrder::getStatus, "WAITING_MEET");
+        if (orderMapper.update(null, completeWrapper) == 0) {
+            throw new BusinessException(ResultCode.ORDER_STATUS_ERROR);
+        }
 
         BigDecimal price = order.getPrice();
 
@@ -165,8 +191,8 @@ public class OrderService {
         incomeLog.setUserId(order.getSellerId());
         incomeLog.setType("INCOME");
         incomeLog.setAmount(price);
-        incomeLog.setBalanceAfter(sellerAfter.getWalletBalance());
-        incomeLog.setOrderId(order.getId());
+        incomeLog.setBalanceAfter(sellerAfter != null ? sellerAfter.getWalletBalance() : BigDecimal.ZERO);
+        incomeLog.setOrderId(orderId);
         incomeLog.setRemark("售出商品收入");
         walletLogMapper.insert(incomeLog);
 
@@ -185,9 +211,8 @@ public class OrderService {
 
         log.info("订单确认收货 orderId={} seller={} amount={}", orderId, order.getSellerId(), price);
 
-        // 买家的昵称（作为"对方"展示给卖家看时需要；这里买家视角不需要对方昵称）
-        String buyerNickname = sysUserMapper.selectById(buyerId).getNickname();
-        return toVO(order, item, buyerNickname, null);
+        String sellerNickname = sellerAfter != null ? sellerAfter.getNickname() : null;
+        return toVO(order, item, sellerNickname, null);
     }
 
     // ================================================================
@@ -196,6 +221,8 @@ public class OrderService {
 
     /**
      * 买家取消订单：退款 → 订单取消 → 商品恢复 ON_SALE
+     *
+     * 使用原子 UPDATE（WHERE status = 'WAITING_MEET'）防止并发重复退款。
      */
     @Transactional(rollbackFor = Exception.class)
     public OrderVO cancelOrder(Long orderId, Long buyerId) {
@@ -204,19 +231,21 @@ public class OrderService {
         if (order == null) {
             throw new BusinessException(ResultCode.NOT_FOUND, "订单不存在");
         }
-        if (!"WAITING_MEET".equals(order.getStatus())) {
-            throw new BusinessException(ResultCode.ORDER_STATUS_ERROR);
-        }
         if (!order.getBuyerId().equals(buyerId)) {
             throw new BusinessException(ResultCode.FORBIDDEN, "只有买家才能取消订单");
         }
 
         BigDecimal price = order.getPrice();
 
-        // 2. 更新订单状态
-        order.setStatus("CANCELLED");
-        order.setCancelledAt(LocalDateTime.now());
-        orderMapper.updateById(order);
+        // 2. 原子更新订单状态 —— 只有 WAITING_MEET → CANCELLED 才生效
+        LambdaUpdateWrapper<TradeOrder> cancelWrapper = new LambdaUpdateWrapper<>();
+        cancelWrapper.set(TradeOrder::getStatus, "CANCELLED")
+                     .set(TradeOrder::getCancelledAt, LocalDateTime.now())
+                     .eq(TradeOrder::getId, orderId)
+                     .eq(TradeOrder::getStatus, "WAITING_MEET");
+        if (orderMapper.update(null, cancelWrapper) == 0) {
+            throw new BusinessException(ResultCode.ORDER_STATUS_ERROR);
+        }
 
         // 3. 买家退款（原子加余额）
         LambdaUpdateWrapper<SysUser> refund = new LambdaUpdateWrapper<>();
@@ -231,8 +260,8 @@ public class OrderService {
         refundLog.setUserId(buyerId);
         refundLog.setType("REFUND");
         refundLog.setAmount(price);
-        refundLog.setBalanceAfter(buyerAfter.getWalletBalance());
-        refundLog.setOrderId(order.getId());
+        refundLog.setBalanceAfter(buyerAfter != null ? buyerAfter.getWalletBalance() : BigDecimal.ZERO);
+        refundLog.setOrderId(orderId);
         refundLog.setRemark("取消订单退款");
         walletLogMapper.insert(refundLog);
 
@@ -243,9 +272,13 @@ public class OrderService {
             itemMapper.updateById(item);
         }
 
+        // 6. 获取卖家昵称作为对方显示
+        SysUser seller = sysUserMapper.selectById(order.getSellerId());
+        String sellerNickname = seller != null ? seller.getNickname() : null;
+
         log.info("订单取消 orderId={} buyer={} refund={}", orderId, buyerId, price);
 
-        return toVO(order, item, buyerAfter.getNickname(), null);
+        return toVO(order, item, sellerNickname, null);
     }
 
     // ================================================================

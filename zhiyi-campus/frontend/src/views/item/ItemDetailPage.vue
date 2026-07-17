@@ -100,11 +100,17 @@
                   <el-icon><StarFilled v-if="favorite" /><Star v-else /></el-icon>
                   {{ favorite ? '已收藏' : '收藏' }}
                 </button>
-                <button class="btn btn--green" :disabled="item.status !== 'ON_SALE' || chatLoading" @click="contactSeller">
+                <button
+                  class="btn"
+                  :class="item.type === 'BUY' ? 'btn--primary' : 'btn--green'"
+                  :disabled="item.status !== 'ON_SALE' || chatLoading"
+                  @click="contactSeller"
+                >
                   <el-icon><ChatDotRound /></el-icon>
-                  联系卖家
+                  {{ item.type === 'BUY' ? '我要出售' : '联系卖家' }}
                 </button>
                 <button
+                  v-if="item.type !== 'BUY'"
                   class="btn btn--primary"
                   :disabled="item.status !== 'ON_SALE' || buyLoading"
                   @click="handleBuy"
@@ -113,7 +119,10 @@
                 </button>
               </template>
             </div>
-            <p class="muted escrow-note">点击“立即购买”后货款将由平台托管，当面验货满意再确认收货</p>
+            <p class=”muted escrow-note”>
+              <template v-if=”item.type === 'BUY'”>点击”我要出售”与发布者联系，双方沟通后确认交易细节</template>
+              <template v-else>点击”立即购买”后货款将由平台托管，当面验货满意再确认收货</template>
+            </p>
           </div>
         </section>
       </template>

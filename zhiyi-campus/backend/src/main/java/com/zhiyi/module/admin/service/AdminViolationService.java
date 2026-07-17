@@ -52,7 +52,35 @@ public class AdminViolationService {
         Page<ViolationReport> p = new Page<>(page, size);
         IPage<ViolationReport> result = violationReportMapper.selectPage(p, q);
 
-        return result.convert(r -> toVO(r));
+        List<ViolationReport> records = result.getRecords();
+        if (records.isEmpty()) {
+            return result.convert(r -> toVO(r, Map.of(), Map.of(), Map.of()));
+        }
+
+        // 批量预加载：收集所有 userId、handlerId、itemId
+        List<Long> userIds = records.stream().map(ViolationReport::getUserId)
+                .distinct().collect(Collectors.toList());
+        List<Long> handlerIds = records.stream().map(ViolationReport::getHandlerId)
+                .filter(id -> id != null).distinct().collect(Collectors.toList());
+        List<Long> itemIds = records.stream().map(ViolationReport::getItemId)
+                .filter(id -> id != null).distinct().collect(Collectors.toList());
+
+        Map<Long, SysUser> userMap = userIds.isEmpty() ? Map.of()
+                : sysUserMapper.selectBatchIds(userIds).stream()
+                        .collect(Collectors.toMap(SysUser::getId, u -> u));
+        Map<Long, SysUser> handlerMap = handlerIds.isEmpty() ? Map.of()
+                : sysUserMapper.selectBatchIds(handlerIds).stream()
+                        .collect(Collectors.toMap(SysUser::getId, u -> u));
+        Map<Long, Item> itemMap = itemIds.isEmpty() ? Map.of()
+                : itemMapper.selectBatchIds(itemIds).stream()
+                        .collect(Collectors.toMap(Item::getId, i -> i));
+
+        // 合并 handler 到 userMap（避免 key 冲突，用不同的 map 更安全）
+        final Map<Long, SysUser> finalUserMap = userMap;
+        final Map<Long, SysUser> finalHandlerMap = handlerMap;
+        final Map<Long, Item> finalItemMap = itemMap;
+
+        return result.convert(r -> toVO(r, finalUserMap, finalHandlerMap, finalItemMap));
     }
 
     /**
@@ -122,7 +150,8 @@ public class AdminViolationService {
 
     // ---- 内部工具 ----
 
-    private ViolationVO toVO(ViolationReport r) {
+    private ViolationVO toVO(ViolationReport r, Map<Long, SysUser> userMap,
+                              Map<Long, SysUser> handlerMap, Map<Long, Item> itemMap) {
         ViolationVO vo = new ViolationVO();
         vo.setId(r.getId());
         vo.setUserId(r.getUserId());
@@ -139,22 +168,23 @@ public class AdminViolationService {
         vo.setCreatedAt(r.getCreatedAt());
         vo.setHandledAt(r.getHandledAt());
 
-        // 商品状态（管理员可直接看到目标商品能不能下架）
+        // 商品状态（从预加载的 map 取，避免 N+1）
         if (r.getItemId() != null) {
-            Item item = itemMapper.selectById(r.getItemId());
+            Item item = itemMap.get(r.getItemId());
             vo.setItemStatus(item != null ? item.getStatus() : null);
         }
 
-        // 填充用户昵称
+        // 发布者昵称
         if (r.getUserId() != null) {
-            SysUser reporter = sysUserMapper.selectById(r.getUserId());
+            SysUser reporter = userMap.get(r.getUserId());
             vo.setReporterName(reporter != null ? reporter.getNickname() : "未知用户");
         } else {
             vo.setReporterName("未知用户");
         }
 
+        // 处理管理员昵称
         if (r.getHandlerId() != null) {
-            SysUser handler = sysUserMapper.selectById(r.getHandlerId());
+            SysUser handler = handlerMap.get(r.getHandlerId());
             vo.setHandlerName(handler != null ? handler.getNickname() : null);
         }
 

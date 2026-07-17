@@ -6,7 +6,9 @@ import com.zhiyi.common.annotation.RoleRequired;
 import com.zhiyi.module.admin.service.AdminManageService;
 import com.zhiyi.module.admin.vo.AdminItemVO;
 import jakarta.servlet.http.HttpServletRequest;
+import jakarta.validation.constraints.NotNull;
 import lombok.RequiredArgsConstructor;
+import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
 /**
@@ -52,7 +54,7 @@ public class AdminManageController {
      */
     @PostMapping("/reset-password")
     public Result<?> resetPassword(
-            @RequestBody ResetPasswordRequest body,
+            @Validated @RequestBody ResetPasswordRequest body,
             HttpServletRequest request) {
         Long adminId = (Long) request.getAttribute("userId");
         manageService.resetPassword(body.userId(), adminId);
@@ -62,5 +64,5 @@ public class AdminManageController {
     /**
      * 内部 DTO
      */
-    record ResetPasswordRequest(Long userId) {}
+    record ResetPasswordRequest(@NotNull(message = "用户ID不能为空") Long userId) {}
 }

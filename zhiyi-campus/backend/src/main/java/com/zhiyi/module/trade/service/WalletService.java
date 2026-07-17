@@ -32,6 +32,9 @@ public class WalletService {
      */
     public WalletBalanceVO getBalance(Long userId) {
         SysUser user = sysUserMapper.selectById(userId);
+        if (user == null) {
+            throw new BusinessException(ResultCode.USER_NOT_FOUND);
+        }
         return new WalletBalanceVO(user.getWalletBalance());
     }
 
@@ -42,6 +45,9 @@ public class WalletService {
     public WalletBalanceVO recharge(Long userId, BigDecimal amount) {
         if (userId == null) {
             throw new BusinessException(ResultCode.UNAUTHORIZED, "用户身份校验失败");
+        }
+        if (amount == null) {
+            throw new BusinessException(ResultCode.BAD_REQUEST, "充值金额不能为空");
         }
 
         // 1. 原子更新余额（单条 SQL：wallet_balance = wallet_balance + ?）
@@ -55,6 +61,9 @@ public class WalletService {
 
         // 2. 回读最新余额
         SysUser user = sysUserMapper.selectById(userId);
+        if (user == null) {
+            throw new BusinessException(ResultCode.USER_NOT_FOUND);
+        }
 
         // 3. 写入资金流水
         WalletLog log = new WalletLog();
