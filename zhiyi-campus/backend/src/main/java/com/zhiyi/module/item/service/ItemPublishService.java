@@ -16,7 +16,10 @@ import com.zhiyi.module.item.vo.UploadImageVO;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.TransactionDefinition;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.util.StringUtils;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -53,6 +56,7 @@ public class ItemPublishService {
     private final ViolationReportMapper violationReportMapper;
     private final MarketplaceService marketplaceService;
     private final ObjectMapper objectMapper;
+    private final PlatformTransactionManager transactionManager;
 
     @Value("${zhiyi.upload-path:./uploads}")
     private String uploadPath;
@@ -90,25 +94,26 @@ public class ItemPublishService {
         validateImages(dto.getImages());
 
         ReviewResult review = review(dto, category);
+
         if (review.violation()) {
-            saveViolationReport(publisherId, dto, review, false);
+            // 独立事务：确保 item + violation_report 提交后再抛异常
+            TransactionTemplate newTx = new TransactionTemplate(transactionManager);
+            newTx.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
+            Long savedItemId = newTx.execute(status -> {
+                Item item = buildItem(publisherId, dto, review);
+                item.setStatus("OFF_SHELF");
+                item.setAiReviewed(false);
+                itemMapper.insert(item);
+                saveViolationReport(publisherId, item.getId(), dto, review, false);
+                return item.getId();
+            });
             throw new BusinessException(ResultCode.AI_VIOLATION, review.reason());
         }
 
-        Item item = new Item();
-        item.setPublisherId(publisherId);
-        item.setType(dto.getType());
-        item.setTitle(dto.getTitle().trim());
-        item.setDescription(dto.getDescription().trim());
-        item.setCategoryId(dto.getCategoryId());
-        item.setPrice(dto.getPrice().setScale(2));
-        item.setImages(toJson(dto.getImages()));
-        item.setAiTags(toJson(review.tags()));
-        item.setAiReviewed(true);
-        item.setTradeLocation(dto.getTradeLocation().trim());
+        // 合规商品正常发布
+        Item item = buildItem(publisherId, dto, review);
         item.setStatus("ON_SALE");
-        item.setViewCount(0);
-        item.setIsDeleted(false);
+        item.setAiReviewed(true);
         itemMapper.insert(item);
         return marketplaceService.getSnapshot(item.getId(), publisherId);
     }
@@ -133,7 +138,14 @@ public class ItemPublishService {
         validateImages(dto.getImages());
         ReviewResult review = review(dto, category);
         if (review.violation()) {
-            saveViolationReport(publisherId, dto, review, false);
+            TransactionTemplate newTx = new TransactionTemplate(transactionManager);
+            newTx.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
+            newTx.executeWithoutResult(status -> {
+                item.setStatus("OFF_SHELF");
+                item.setAiReviewed(false);
+                itemMapper.updateById(item);
+                saveViolationReport(publisherId, item.getId(), dto, review, false);
+            });
             throw new BusinessException(ResultCode.AI_VIOLATION, review.reason());
         }
 
@@ -148,6 +160,22 @@ public class ItemPublishService {
         item.setTradeLocation(dto.getTradeLocation().trim());
         itemMapper.updateById(item);
         return marketplaceService.getSnapshot(itemId, publisherId);
+    }
+
+    private Item buildItem(Long publisherId, PublishItemDTO dto, ReviewResult review) {
+        Item item = new Item();
+        item.setPublisherId(publisherId);
+        item.setType(dto.getType());
+        item.setTitle(dto.getTitle().trim());
+        item.setDescription(dto.getDescription().trim());
+        item.setCategoryId(dto.getCategoryId());
+        item.setPrice(dto.getPrice().setScale(2));
+        item.setImages(toJson(dto.getImages()));
+        item.setAiTags(toJson(review.tags()));
+        item.setTradeLocation(dto.getTradeLocation().trim());
+        item.setViewCount(0);
+        item.setIsDeleted(false);
+        return item;
     }
 
     private void validateImages(List<String> images) {
@@ -196,9 +224,10 @@ public class ItemPublishService {
         }
     }
 
-    private void saveViolationReport(Long userId, PublishItemDTO dto, ReviewResult review, boolean aiReviewError) {
+    private void saveViolationReport(Long userId, Long itemId, PublishItemDTO dto, ReviewResult review, boolean aiReviewError) {
         ViolationReport report = new ViolationReport();
         report.setUserId(userId);
+        report.setItemId(itemId);
         report.setOriginalTitle(dto.getTitle());
         report.setOriginalDescription(dto.getDescription());
         report.setViolationType(aiReviewError ? "AI_REVIEW_ERROR" : "CONTENT_VIOLATION");

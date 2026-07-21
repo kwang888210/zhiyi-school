@@ -176,7 +176,8 @@ public class ChatService {
             ConversationVO vo = new ConversationVO();
             vo.setConversationId(latest.getConversationId());
             vo.setPeer(toUserVO(users.get(peerId)));
-            vo.setRelatedItem(toItemSummary(items.get(itemByConversation.get(latest.getConversationId()))));
+            Long relItemId = itemByConversation.get(latest.getConversationId());
+            vo.setRelatedItem(relItemId == null ? null : toItemSummary(items.get(relItemId)));
             vo.setLastMessage(latest.getContent());
             vo.setLastMessageTime(latest.getCreatedAt());
             vo.setUnreadCount(unreadByConversation.getOrDefault(latest.getConversationId(), 0L));

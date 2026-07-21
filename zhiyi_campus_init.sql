@@ -197,6 +197,7 @@ CREATE TABLE violation_report (
     status                  VARCHAR(20)     NOT NULL DEFAULT 'PENDING' COMMENT '处理状态：PENDING待处理/CONFIRMED已确认/DISMISSED已驳回',
     handler_id              BIGINT          DEFAULT NULL             COMMENT '处理的管理员ID',
     handle_note             VARCHAR(500)    DEFAULT NULL             COMMENT '处理备注',
+    item_id                 BIGINT          DEFAULT NULL             COMMENT '关联商品ID（AI拦截时创建的OFF_SHELF商品，管理员放行后改为ON_SALE）',
     ai_review_error         TINYINT(1)      NOT NULL DEFAULT 0       COMMENT 'AI是否异常：0正常/1超时或异常（待人工复核）',
     created_at              DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '上报时间',
     handled_at              DATETIME        DEFAULT NULL             COMMENT '处理时间',
@@ -204,6 +205,7 @@ CREATE TABLE violation_report (
     PRIMARY KEY (id),
     INDEX idx_status (status),
     INDEX idx_user (user_id),
+    INDEX idx_item_id (item_id),
     CONSTRAINT fk_vr_user    FOREIGN KEY (user_id)    REFERENCES sys_user(id),
     CONSTRAINT fk_vr_handler FOREIGN KEY (handler_id) REFERENCES sys_user(id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='AI违规上报记录表';

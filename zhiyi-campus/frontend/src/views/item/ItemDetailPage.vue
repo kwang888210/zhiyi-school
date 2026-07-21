@@ -100,14 +100,29 @@
                   <el-icon><StarFilled v-if="favorite" /><Star v-else /></el-icon>
                   {{ favorite ? '已收藏' : '收藏' }}
                 </button>
-                <button class="btn btn--green" :disabled="item.status !== 'ON_SALE' || chatLoading" @click="contactSeller">
+                <button
+                  class="btn"
+                  :class="item.type === 'BUY' ? 'btn--primary' : 'btn--green'"
+                  :disabled="item.status !== 'ON_SALE' || chatLoading"
+                  @click="contactSeller"
+                >
                   <el-icon><ChatDotRound /></el-icon>
-                  联系卖家
+                  {{ item.type === 'BUY' ? '我要出售' : '联系卖家' }}
                 </button>
-                <button class="btn btn--primary" disabled>立即购买</button>
+                <button
+                  v-if="item.type !== 'BUY'"
+                  class="btn btn--primary"
+                  :disabled="item.status !== 'ON_SALE' || buyLoading"
+                  @click="handleBuy"
+                >
+                  {{ buyLoading ? '下单中...' : '立即购买' }}
+                </button>
               </template>
             </div>
-            <p class="muted escrow-note">点击“立即购买”后货款将由平台托管，当面验货满意再确认收货</p>
+            <p class=”muted escrow-note”>
+              <template v-if=”item.type === 'BUY'”>点击”我要出售”与发布者联系，双方沟通后确认交易细节</template>
+              <template v-else>点击”立即购买”后货款将由平台托管，当面验货满意再确认收货</template>
+            </p>
           </div>
         </section>
       </template>
@@ -123,7 +138,7 @@
 <script setup>
 import { computed, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import { ChatDotRound, Star, StarFilled } from '@element-plus/icons-vue'
 import DefaultLayout from '@/components/layout/DefaultLayout.vue'
 import LevelBadge from '@/components/common/LevelBadge.vue'
@@ -131,6 +146,7 @@ import PriceTag from '@/components/common/PriceTag.vue'
 import UserAvatar from '@/components/common/UserAvatar.vue'
 import { getItemDetail, toggleFavorite } from '@/api/item'
 import { startItemConversation } from '@/api/chat'
+import { createOrder } from '@/api/order'
 import { getUserId, isLoggedIn } from '@/utils/auth'
 
 const STATUS_TEXT = { ON_SALE: '在售中', PENDING: '交易中', SOLD: '已售出', OFF_SHELF: '已下架' }
@@ -143,6 +159,7 @@ const item = ref(null)
 const loading = ref(false)
 const favoriteLoading = ref(false)
 const chatLoading = ref(false)
+const buyLoading = ref(false)
 const favorite = ref(false)
 const favoriteCount = ref(0)
 const activeImage = ref('')
@@ -226,6 +243,30 @@ async function contactSeller() {
     })
   } finally {
     chatLoading.value = false
+  }
+}
+
+async function handleBuy() {
+  if (!requireLogin()) return
+  try {
+    await ElMessageBox.confirm(
+      `确认购买「${item.value.title}」？\n\n金额：¥${Number(item.value.price).toFixed(2)}\n确认后资金将由平台担保冻结，当面验货满意后再确认收货。`,
+      '确认下单',
+      { confirmButtonText: '确认购买', cancelButtonText: '再想想', type: 'warning' }
+    )
+  } catch {
+    return // 用户取消
+  }
+  buyLoading.value = true
+  try {
+    await createOrder(item.value.id)
+    ElMessage.success('下单成功！资金已冻结，请联系卖家线下见面')
+    // 刷新商品状态
+    fetchDetail()
+  } catch {
+    // 错误已在拦截器提示
+  } finally {
+    buyLoading.value = false
   }
 }
 
