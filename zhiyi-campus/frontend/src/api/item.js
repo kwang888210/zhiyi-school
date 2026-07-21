@@ -11,7 +11,7 @@ export function searchItems(params) {
 }
 
 export function getItemDetail(id) {
-  return request.get(`/item/${id}`)
+  return request.get(`/item/public/${id}`)
 }
 
 export function getCategories() {

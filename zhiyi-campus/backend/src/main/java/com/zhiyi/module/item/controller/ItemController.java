@@ -102,6 +102,12 @@ public class ItemController {
         return Result.ok(marketplaceService.getDetail(id, optionalCurrentUser(request)));
     }
 
+    @GetMapping("/public/{id}")
+    public Result<ItemCardVO> publicDetail(@PathVariable Long id,
+                                           HttpServletRequest request) {
+        return Result.ok(marketplaceService.getDetail(id, optionalCurrentUser(request)));
+    }
+
     @PostMapping("/{id}/favorite")
     public Result<FavoriteToggleVO> favorite(@RequestAttribute("userId") Long userId,
                                              @PathVariable Long id) {
@@ -133,8 +139,8 @@ public class ItemController {
     @PutMapping("/{id}/relist")
     public Result<Void> relist(@RequestAttribute("userId") Long userId,
                                @PathVariable Long id) {
-        marketplaceService.relist(userId, id);
-        return Result.ok("已重新上架", null);
+        itemPublishService.relist(userId, id);
+        return Result.ok("AI 审核通过，已重新上架", null);
     }
 
     @DeleteMapping("/{id}")

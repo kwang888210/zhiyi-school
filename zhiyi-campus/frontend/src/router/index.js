@@ -129,6 +129,12 @@ const routes = [
     component: () => import('@/views/admin/ManagePage.vue'),
     meta: { title: '内容管理', requireAuth: true, requireAdmin: true },
   },
+  {
+    path: '/admin/categories',
+    name: 'AdminCategories',
+    component: () => import('@/views/admin/CategoriesPage.vue'),
+    meta: { title: '分类管理', requireAuth: true, requireAdmin: true },
+  },
 
   // ── 兜底：404 ──
   {

@@ -47,6 +47,7 @@ public class WebMvcConfig implements WebMvcConfigurer {
                         "/api/item/list",                         // 商品大厅
                         "/api/item/search",                       // 商品搜索
                         "/api/item/ranking",                      // 排行榜
+                        "/api/item/public/*",                     // 商品详情
                         "/api/category/list"                      // 分类列表
                 ).order(0);
         registry.addInterceptor(roleInterceptor)

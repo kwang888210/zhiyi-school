@@ -189,15 +189,6 @@ public class MarketplaceService {
     }
 
     @Transactional
-    public void relist(Long userId, Long itemId) {
-        Item item = requireOwnItem(userId, itemId);
-        if (!"OFF_SHELF".equals(item.getStatus())) {
-            throw new BusinessException(ResultCode.BAD_REQUEST, "只有已下架商品可以重新上架");
-        }
-        updateStatus(itemId, "ON_SALE");
-    }
-
-    @Transactional
     public void deleteOwnItem(Long userId, Long itemId) {
         Item item = requireOwnItem(userId, itemId);
         if ("PENDING".equals(item.getStatus())) {
