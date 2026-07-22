@@ -50,10 +50,11 @@ zhiyi:
   jwt:
     secret: ${JWT_SECRET:zhiyi-campus-2026-secret-key-change-in-production}
     expiration: 86400000                     # 24小时（毫秒）
-  # AI 接口（通义千问 / 文心一言 等，按实际情况填写）
+  # 模块二：DeepSeek 内容审核。密钥仅通过环境变量注入，禁止提交到源码。
   ai:
-    api-url: https://your-ai-api-endpoint
-    api-key: ${AI_API_KEY:your-api-key}
+    api-url: ${AI_API_URL:https://api.deepseek.com}
+    api-key: ${AI_API_KEY:}
+    model: ${AI_MODEL:deepseek-v4-pro}
     timeout: 5000                            # 超时时间（毫秒）
   # ── 模块一：认证与风控 ──
   auth:

@@ -133,8 +133,8 @@ public class ItemController {
     @PutMapping("/{id}/relist")
     public Result<Void> relist(@RequestAttribute("userId") Long userId,
                                @PathVariable Long id) {
-        marketplaceService.relist(userId, id);
-        return Result.ok("已重新上架", null);
+        itemPublishService.relist(userId, id);
+        return Result.ok("AI 审核通过，已重新上架", null);
     }
 
     @DeleteMapping("/{id}")
