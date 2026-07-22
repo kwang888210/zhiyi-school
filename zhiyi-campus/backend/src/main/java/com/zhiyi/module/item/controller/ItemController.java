@@ -102,12 +102,6 @@ public class ItemController {
         return Result.ok(marketplaceService.getDetail(id, optionalCurrentUser(request)));
     }
 
-    @GetMapping("/public/{id}")
-    public Result<ItemCardVO> publicDetail(@PathVariable Long id,
-                                           HttpServletRequest request) {
-        return Result.ok(marketplaceService.getDetail(id, optionalCurrentUser(request)));
-    }
-
     @PostMapping("/{id}/favorite")
     public Result<FavoriteToggleVO> favorite(@RequestAttribute("userId") Long userId,
                                              @PathVariable Long id) {
