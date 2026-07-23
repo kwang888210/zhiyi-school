@@ -26,9 +26,21 @@ class PublishItemDTOValidationTest {
     }
 
     @Test
-    void rejectsDescriptionShorterThanTenCharacters() {
+    void allowsOneCharacterDescription() {
         PublishItemDTO dto = validDTO();
-        dto.setDescription("123456789");
+        dto.setDescription("A");
+
+        long descriptionViolations = validator.validate(dto).stream()
+                .filter(v -> "description".equals(v.getPropertyPath().toString()))
+                .count();
+
+        assertEquals(0, descriptionViolations);
+    }
+
+    @Test
+    void rejectsBlankDescription() {
+        PublishItemDTO dto = validDTO();
+        dto.setDescription("   ");
 
         long descriptionViolations = validator.validate(dto).stream()
                 .filter(v -> "description".equals(v.getPropertyPath().toString()))

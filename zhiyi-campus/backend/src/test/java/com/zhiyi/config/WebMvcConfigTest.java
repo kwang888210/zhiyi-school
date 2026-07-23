@@ -11,6 +11,7 @@ import org.springframework.web.util.ServletRequestPathUtils;
 
 import java.util.List;
 
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 class WebMvcConfigTest {
 
@@ -28,6 +29,21 @@ class WebMvcConfigTest {
         ServletRequestPathUtils.parseAndCache(request);
         assertTrue(jwtMapping.matches(request),
                 "PUT /api/item/{id} must reach JwtInterceptor instead of matching the public GET exclusion");
+    }
+
+    @Test
+    void trendingAiTagsRouteIsPublic() {
+        JwtInterceptor jwtInterceptor = new JwtInterceptor(null, null);
+        RoleInterceptor roleInterceptor = new RoleInterceptor();
+        WebMvcConfig config = new WebMvcConfig(jwtInterceptor, roleInterceptor);
+        ExposedInterceptorRegistry registry = new ExposedInterceptorRegistry();
+
+        config.addInterceptors(registry);
+
+        MappedInterceptor jwtMapping = registry.mappingFor(jwtInterceptor);
+        MockHttpServletRequest request = new MockHttpServletRequest("GET", "/api/item/ranking/tags");
+        ServletRequestPathUtils.parseAndCache(request);
+        assertFalse(jwtMapping.matches(request));
     }
 
     private static final class ExposedInterceptorRegistry extends InterceptorRegistry {

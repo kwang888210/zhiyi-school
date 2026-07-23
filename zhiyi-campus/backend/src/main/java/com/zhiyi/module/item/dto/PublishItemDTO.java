@@ -23,7 +23,7 @@ public class PublishItemDTO {
     private String title;
 
     @NotBlank(message = "描述不能为空")
-    @Size(min = 10, max = 500, message = "描述需为10-500字")
+    @Size(max = 500, message = "描述不能超过500字")
     private String description;
 
     @NotNull(message = "所属大类不能为空")
