@@ -57,6 +57,18 @@ export function getAdminSessions() {
   return request.get('/admin/chat/sessions')
 }
 
+export function getAdminChatMessages(params) {
+  return request.get('/admin/chat/messages', { params })
+}
+
+export function sendAdminChatMessage(data) {
+  return request.post('/admin/chat/send', data)
+}
+
+export function getAdminUnreadMessages(params) {
+  return request.get('/admin/chat/unread', { params })
+}
+
 /** 分类管理 */
 export function getAdminCategories() {
   return request.get('/admin/categories')

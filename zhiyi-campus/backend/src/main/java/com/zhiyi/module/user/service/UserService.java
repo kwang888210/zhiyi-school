@@ -5,6 +5,7 @@ import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.zhiyi.common.BusinessException;
 import com.zhiyi.common.ResultCode;
+import com.zhiyi.common.SchoolScopeGuard;
 import com.zhiyi.module.user.dto.UpdateProfileDTO;
 import com.zhiyi.module.user.entity.ExpLog;
 import com.zhiyi.module.user.entity.School;
@@ -193,7 +194,11 @@ public class UserService {
     /**
      * 商品详情中的卖家档案。接口需要登录，只返回用户主动填写的联系与校园资料。
      */
-    public SellerDetailVO getSellerDetail(Long userId) {
+    public SellerDetailVO getSellerDetail(Long viewerId, Long userId) {
+        SysUser viewer = userMapper.selectById(viewerId);
+        if (viewer == null) {
+            throw new BusinessException(ResultCode.USER_NOT_FOUND);
+        }
         SysUser user = userMapper.selectOne(Wrappers.<SysUser>lambdaQuery()
                 .select(SysUser::getId, SysUser::getNickname, SysUser::getLevel,
                         SysUser::getSchoolId, SysUser::getPhone, SysUser::getSchoolEmail,
@@ -202,6 +207,8 @@ public class UserService {
         if (user == null) {
             throw new BusinessException(ResultCode.USER_NOT_FOUND);
         }
+        SchoolScopeGuard.requireSame(
+                viewer.getSchoolId(), user.getSchoolId(), "只能查看本校卖家资料");
         return new SellerDetailVO(
                 user.getId(),
                 user.getNickname(),

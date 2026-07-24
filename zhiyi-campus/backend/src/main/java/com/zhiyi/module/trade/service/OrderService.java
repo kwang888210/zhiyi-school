@@ -6,6 +6,7 @@ import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.zhiyi.common.BusinessException;
 import com.zhiyi.common.ResultCode;
+import com.zhiyi.common.SchoolScopeGuard;
 import com.zhiyi.module.item.entity.Item;
 import com.zhiyi.module.item.mapper.ItemMapper;
 import com.zhiyi.module.trade.dto.CreateOrderDTO;
@@ -91,11 +92,21 @@ public class OrderService {
         if (buyer == null) {
             throw new BusinessException(ResultCode.USER_NOT_FOUND);
         }
+        SchoolScopeGuard.requireSame(
+                buyer.getSchoolId(), item.getSchoolId(), "仅支持购买本校商品");
         if (buyer.getWalletBalance().compareTo(price) < 0) {
             throw new BusinessException(ResultCode.BALANCE_NOT_ENOUGH);
         }
 
-        // 4. 原子扣款（WHERE 条件兜底余额不足的并发竞态）
+        // 4. 卖家当前学校也必须与商品及买家一致，避免转校后的旧商品形成跨校交易。
+        SysUser seller = sysUserMapper.selectById(item.getPublisherId());
+        if (seller == null) {
+            throw new BusinessException(ResultCode.USER_NOT_FOUND);
+        }
+        SchoolScopeGuard.requireSame(
+                buyer.getSchoolId(), seller.getSchoolId(), "仅支持同校交易");
+
+        // 5. 原子扣款（WHERE 条件兜底余额不足的并发竞态）
         LambdaUpdateWrapper<SysUser> deduct = new LambdaUpdateWrapper<>();
         deduct.setSql("wallet_balance = wallet_balance - {0}", price)
               .eq(SysUser::getId, buyerId)
@@ -104,7 +115,7 @@ public class OrderService {
             throw new BusinessException(ResultCode.BALANCE_NOT_ENOUGH);
         }
 
-        // 5. 二次检查：扣款后再次确认没有并发创建了同一商品的活跃订单
+        // 6. 二次检查：扣款后再次确认没有并发创建了同一商品的活跃订单
         Long recheckCount = orderMapper.selectCount(
                 new LambdaQueryWrapper<TradeOrder>()
                         .eq(TradeOrder::getItemId, item.getId())
@@ -113,10 +124,10 @@ public class OrderService {
             throw new BusinessException(ResultCode.CONFLICT, "该商品已被他人抢先下单");
         }
 
-        // 6. 回读最新余额
+        // 7. 回读最新余额
         SysUser buyerAfter = sysUserMapper.selectById(buyerId);
 
-        // 7. 创建订单
+        // 8. 创建订单
         TradeOrder order = new TradeOrder();
         order.setItemId(item.getId());
         order.setBuyerId(buyerId);
@@ -125,7 +136,7 @@ public class OrderService {
         order.setStatus("WAITING_MEET");
         orderMapper.insert(order);
 
-        // 8. 买家支出流水
+        // 9. 买家支出流水
         WalletLog paymentLog = new WalletLog();
         paymentLog.setUserId(buyerId);
         paymentLog.setType("PAYMENT");
@@ -135,12 +146,11 @@ public class OrderService {
         paymentLog.setRemark("购买商品：" + item.getTitle());
         walletLogMapper.insert(paymentLog);
 
-        // 9. 商品标记交易中
+        // 10. 商品标记交易中
         item.setStatus("PENDING");
         itemMapper.updateById(item);
 
-        // 10. 获取卖家昵称作为对的显示方
-        SysUser seller = sysUserMapper.selectById(item.getPublisherId());
+        // 11. 获取卖家昵称作为对的显示方
         String sellerNickname = seller != null ? seller.getNickname() : null;
 
         log.info("订单创建成功 orderId={} buyer={} seller={} price={}",

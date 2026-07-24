@@ -63,8 +63,9 @@ public class UserController {
 
     /** 商品详情卖家档案：含联系方式和校园资料，仅登录用户可查看。 */
     @GetMapping("/{id}/seller-detail")
-    public Result<SellerDetailVO> sellerDetail(@PathVariable Long id) {
-        return Result.ok(userService.getSellerDetail(id));
+    public Result<SellerDetailVO> sellerDetail(@RequestAttribute("userId") Long viewerId,
+                                               @PathVariable Long id) {
+        return Result.ok(userService.getSellerDetail(viewerId, id));
     }
 
     /** 伪熟人信任标签（A5）：当前登录用户视角看目标用户 → ["同学院","同级","同楼"] */

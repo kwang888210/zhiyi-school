@@ -81,6 +81,7 @@ class OrderServiceTest {
         item.setStatus("ON_SALE");
         item.setPrice(PRICE);
         item.setPublisherId(SELLER_ID);
+        item.setSchoolId(1L);
         item.setTitle("测试商品");
         return item;
     }
@@ -90,6 +91,7 @@ class OrderServiceTest {
         SysUser user = new SysUser();
         user.setId(BUYER_ID);
         user.setNickname("买家小王");
+        user.setSchoolId(1L);
         user.setWalletBalance(balance);
         return user;
     }
@@ -99,6 +101,7 @@ class OrderServiceTest {
         SysUser seller = new SysUser();
         seller.setId(SELLER_ID);
         seller.setNickname("卖家老张");
+        seller.setSchoolId(1L);
         seller.setWalletBalance(BigDecimal.ZERO);
         return seller;
     }
@@ -212,6 +215,44 @@ class OrderServiceTest {
         }
 
         @Test
+        void shouldRejectCrossSchoolBuyer() {
+            Item item = onSaleItem();
+            item.setSchoolId(2L);
+            SysUser b = buyer(new BigDecimal("200.00"));
+            CreateOrderDTO dto = new CreateOrderDTO();
+            dto.setItemId(ITEM_ID);
+
+            when(itemMapper.selectById(ITEM_ID)).thenReturn(item);
+            when(orderMapper.selectCount(any())).thenReturn(0L);
+            when(sysUserMapper.selectById(BUYER_ID)).thenReturn(b);
+
+            BusinessException error = assertThrows(BusinessException.class,
+                    () -> orderService.createOrder(BUYER_ID, dto));
+            assertEquals(403, error.getCode());
+            verify(sysUserMapper, never()).update(nullable(SysUser.class), any());
+        }
+
+        @Test
+        void shouldRejectSellerWhoMovedToAnotherSchool() {
+            Item item = onSaleItem();
+            SysUser b = buyer(new BigDecimal("200.00"));
+            SysUser s = seller();
+            s.setSchoolId(2L);
+            CreateOrderDTO dto = new CreateOrderDTO();
+            dto.setItemId(ITEM_ID);
+
+            when(itemMapper.selectById(ITEM_ID)).thenReturn(item);
+            when(orderMapper.selectCount(any())).thenReturn(0L);
+            when(sysUserMapper.selectById(BUYER_ID)).thenReturn(b);
+            when(sysUserMapper.selectById(SELLER_ID)).thenReturn(s);
+
+            BusinessException error = assertThrows(BusinessException.class,
+                    () -> orderService.createOrder(BUYER_ID, dto));
+            assertEquals(403, error.getCode());
+            verify(sysUserMapper, never()).update(nullable(SysUser.class), any());
+        }
+
+        @Test
         void shouldRejectWhenDeductionFails() {
             Item item = onSaleItem();
             SysUser b = buyer(new BigDecimal("200.00"));
@@ -221,6 +262,7 @@ class OrderServiceTest {
             when(itemMapper.selectById(ITEM_ID)).thenReturn(item);
             when(orderMapper.selectCount(any())).thenReturn(0L);
             when(sysUserMapper.selectById(BUYER_ID)).thenReturn(b);
+            when(sysUserMapper.selectById(SELLER_ID)).thenReturn(seller());
             when(sysUserMapper.update(nullable(SysUser.class), any())).thenReturn(0); // 扣款失败
 
             assertThrows(BusinessException.class,

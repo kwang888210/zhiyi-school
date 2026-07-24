@@ -49,7 +49,7 @@ CREATE TABLE sys_user (
     password        VARCHAR(255)    NOT NULL                 COMMENT 'BCrypt加密密码',
     nickname        VARCHAR(50)     NOT NULL                 COMMENT '昵称',
     phone           VARCHAR(20)     DEFAULT NULL             COMMENT '手机号',
-    school_id       BIGINT          DEFAULT NULL             COMMENT '所属学校ID（注册必填；个人资料可修改；管理员可为空）',
+    school_id       BIGINT          DEFAULT NULL             COMMENT '所属学校ID（普通功能按学校隔离；管理员默认上海大学）',
     school_email    VARCHAR(100)    DEFAULT NULL             COMMENT '学校邮箱（可选，后缀须与所属学校匹配）',
     college         VARCHAR(50)     DEFAULT NULL             COMMENT '学院（个人中心自愿补全，信任标签用）',
     grade           VARCHAR(10)     DEFAULT NULL             COMMENT '年级（个人中心自愿补全，信任标签用）',
@@ -315,11 +315,12 @@ INSERT INTO school (name, code, email_domain) VALUES
 -- -----------------------------------------------------------
 -- 3.1 系统管理员（账号 admin；密码与密保答案均以 BCrypt 哈希形式保存，初始化后请在本地重置）
 -- -----------------------------------------------------------
-INSERT INTO sys_user (student_id, password, nickname, role, status, level, exp, wallet_balance, security_question, security_answer)
+INSERT INTO sys_user (student_id, password, nickname, school_id, role, status, level, exp, wallet_balance, security_question, security_answer)
 VALUES (
     'admin',
     '$2a$10$8Jcbe5NyLSowgw.3zOB9bOgoKCpwTuoHWLDAv0robpXmRA10hBngS',  -- BCrypt 哈希
     '系统管理员',
+    (SELECT id FROM school WHERE code = 'SHU'),
     'ADMIN',
     'ACTIVE',
     99,

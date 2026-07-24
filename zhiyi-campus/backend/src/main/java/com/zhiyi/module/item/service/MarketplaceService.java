@@ -9,6 +9,7 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.zhiyi.common.BusinessException;
 import com.zhiyi.common.ResultCode;
+import com.zhiyi.common.SchoolScopeGuard;
 import com.zhiyi.module.item.entity.Category;
 import com.zhiyi.module.item.entity.Item;
 import com.zhiyi.module.item.mapper.CategoryMapper;
@@ -149,6 +150,9 @@ public class MarketplaceService {
         if (item == null) {
             throw new BusinessException(ResultCode.NOT_FOUND, "商品不存在");
         }
+        if (currentUserId != null) {
+            requireSameSchool(currentUserId, item, "只能查看本校商品");
+        }
         itemMapper.update(null, new LambdaUpdateWrapper<Item>()
                 .eq(Item::getId, itemId)
                 .setSql("view_count = view_count + 1")
@@ -176,6 +180,7 @@ public class MarketplaceService {
         if (item == null) {
             throw new BusinessException(ResultCode.NOT_FOUND, "商品不存在");
         }
+        requireSameSchool(userId, item, "只能收藏本校商品");
         if (!"ON_SALE".equals(item.getStatus())) {
             throw new BusinessException(ResultCode.ITEM_NOT_ON_SALE);
         }
@@ -206,6 +211,7 @@ public class MarketplaceService {
     }
 
     public IPage<ItemCardVO> listMyFavorites(Long userId, int page, int size) {
+        Long schoolId = requireUserSchoolId(userId);
         Page<ItemFavorite> favPage = favoriteMapper.selectPage(
                 new Page<>(Math.max(page, 1), normalizeSize(size)),
                 new LambdaQueryWrapper<ItemFavorite>()
@@ -220,6 +226,8 @@ public class MarketplaceService {
         List<Item> ordered = itemIds.stream()
                 .map(itemById::get)
                 .filter(Objects::nonNull)
+                // 收藏列表也以账号当前所属学校为边界。
+                .filter(item -> Objects.equals(item.getSchoolId(), schoolId))
                 .toList();
 
         Page<ItemCardVO> result = new Page<>(favPage.getCurrent(), favPage.getSize(), favPage.getTotal());
@@ -400,24 +408,30 @@ public class MarketplaceService {
     }
 
     /**
-     * 普通登录用户只看到所属学校的数据；管理员和未登录访客沿用原有全局视图。
-     * 注册流程保证普通用户必有 schoolId，这里仍对异常数据做显式失败，避免静默越权。
+     * 所有登录账号（包括管理员）访问普通商品接口时，只能看到所属学校的数据。
+     * 未登录访客沿用公共浏览视图；/api/admin/** 管理接口不经过此处，保持全平台范围。
      */
     private Long marketplaceSchoolId(Long currentUserId) {
         if (currentUserId == null) {
             return null;
         }
-        SysUser currentUser = userMapper.selectById(currentUserId);
-        if (currentUser == null) {
+        return requireUserSchoolId(currentUserId);
+    }
+
+    private void requireSameSchool(Long userId, Item item, String message) {
+        SysUser user = userMapper.selectById(userId);
+        if (user == null) {
             throw new BusinessException(ResultCode.USER_NOT_FOUND);
         }
-        if ("ADMIN".equals(currentUser.getRole())) {
-            return null;
+        SchoolScopeGuard.requireSame(user.getSchoolId(), item.getSchoolId(), message);
+    }
+
+    private Long requireUserSchoolId(Long userId) {
+        SysUser user = userMapper.selectById(userId);
+        if (user == null) {
+            throw new BusinessException(ResultCode.USER_NOT_FOUND);
         }
-        if (currentUser.getSchoolId() == null) {
-            throw new BusinessException(ResultCode.BAD_REQUEST, "请先设置所属学校");
-        }
-        return currentUser.getSchoolId();
+        return SchoolScopeGuard.requireAssigned(user.getSchoolId());
     }
 
     private void applySort(LambdaQueryWrapper<Item> wrapper, String sort) {

@@ -88,10 +88,13 @@ class UserServiceTest {
     @Test
     void sellerDetailExposesContactAndCampusFields() {
         SysUserMapper userMapper = mock(SysUserMapper.class);
+        SysUser viewer = cardUser();
+        viewer.setId(7L);
+        when(userMapper.selectById(7L)).thenReturn(viewer);
         when(userMapper.selectOne(any())).thenReturn(cardUser());
         UserService service = new UserService(userMapper, null, schoolServiceReturning(1L, "上海大学"));
 
-        SellerDetailVO detail = service.getSellerDetail(42L);
+        SellerDetailVO detail = service.getSellerDetail(7L, 42L);
 
         assertEquals(42L, detail.getId());
         assertEquals("测试同学", detail.getNickname());
@@ -102,6 +105,22 @@ class UserServiceTest {
         assertEquals("计算机学院", detail.getCollege());
         assertEquals("2024级", detail.getGrade());
         assertEquals("南区3号楼", detail.getDormitory());
+    }
+
+    @Test
+    void sellerDetailRejectsCrossSchoolViewer() {
+        SysUserMapper userMapper = mock(SysUserMapper.class);
+        SysUser viewer = cardUser();
+        viewer.setId(7L);
+        viewer.setSchoolId(2L);
+        when(userMapper.selectById(7L)).thenReturn(viewer);
+        when(userMapper.selectOne(any())).thenReturn(cardUser());
+        UserService service = new UserService(
+                userMapper, null, schoolServiceReturning(1L, "上海大学"));
+
+        BusinessException error = assertThrows(
+                BusinessException.class, () -> service.getSellerDetail(7L, 42L));
+        assertEquals(403, error.getCode());
     }
 
     @Test
