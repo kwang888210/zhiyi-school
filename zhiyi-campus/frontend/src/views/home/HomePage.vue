@@ -65,31 +65,52 @@
       </div>
 
       <section class="filter-panel">
-        <div class="filter-panel__title">
-          <span class="filter-panel__stamp"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5h16l-6 7v5l-4 2v-7Z"/></svg></span>
-          <div><strong>精细筛选</strong><small>缩小范围，快点找到那件好物</small></div>
-        </div>
-        <div class="advanced-row">
-          <label class="filter-field">
-            <span>发布类型</span>
-            <select v-model="filters.type" class="select">
-              <option value="">全部类型</option>
-              <option value="SELL">出售</option>
-              <option value="BUY">求购</option>
-            </select>
-          </label>
-          <fieldset class="filter-field price-field">
-            <legend>价格区间</legend>
-            <div class="price-range">
-              <span>¥</span><input v-model.number="filters.minPrice" type="number" min="0" step="1" placeholder="最低价" @blur="applyPriceFilterNow" @keyup.enter="applyPriceFilterNow">
-              <i>—</i>
-              <span>¥</span><input v-model.number="filters.maxPrice" type="number" min="0" step="1" placeholder="最高价" @blur="applyPriceFilterNow" @keyup.enter="applyPriceFilterNow">
-            </div>
-          </fieldset>
-          <button class="btn filter-reset" type="button" :disabled="loading" @click="resetFilters">
-            <svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 11a8 8 0 1 0-2.34 5.66"/><path d="M20 4v7h-7"/></svg>
-            重置
+        <div class="filter-panel__bar">
+          <button class="filter-panel__title" type="button" :aria-expanded="showTagCloud" @click="toggleTagCloud">
+            <span class="filter-panel__stamp"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5h16l-6 7v5l-4 2v-7Z"/></svg></span>
+            <strong>精细筛选</strong>
+            <span class="filter-panel__chevron" :class="{ open: showTagCloud }"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="m6 9 6 6 6-6"/></svg></span>
           </button>
+          <div class="advanced-row">
+            <label class="filter-field">
+              <span>发布类型</span>
+              <select v-model="filters.type" class="select">
+                <option value="">全部类型</option>
+                <option value="SELL">出售</option>
+                <option value="BUY">求购</option>
+              </select>
+            </label>
+            <fieldset class="filter-field price-field">
+              <legend>价格区间</legend>
+              <div class="price-range">
+                <span>¥</span><input v-model.number="filters.minPrice" type="number" min="0" step="1" placeholder="最低价" @blur="applyPriceFilterNow" @keyup.enter="applyPriceFilterNow">
+                <i>—</i>
+                <span>¥</span><input v-model.number="filters.maxPrice" type="number" min="0" step="1" placeholder="最高价" @blur="applyPriceFilterNow" @keyup.enter="applyPriceFilterNow">
+              </div>
+            </fieldset>
+            <button class="btn filter-reset" type="button" :disabled="loading" @click="resetFilters">
+              <svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 11a8 8 0 1 0-2.34 5.66"/><path d="M20 4v7h-7"/></svg>
+              重置
+            </button>
+          </div>
+        </div>
+        <div class="tag-cloud-wrap" :class="{ open: showTagCloud && allTags.length }">
+          <div class="tag-cloud-wrap__inner">
+            <div class="tag-cloud">
+              <div v-for="group in allTags" :key="group.categoryId" class="tag-group">
+                <span class="tag-group__label">{{ group.categoryName }}</span>
+                <div class="tag-group__chips">
+                  <button
+                    v-for="tag in group.tags"
+                    :key="tag.name"
+                    class="tag-cloud__chip"
+                    :class="{ active: activeTag === tag.name }"
+                    @click="filterByTag(tag.name, group.categoryId)"
+                  >{{ tag.name }}<span class="tag-cloud__count">{{ tag.count }}</span></button>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
       </section>
 
@@ -122,7 +143,6 @@
               </div>
               <div class="goods-card__body">
                 <h2 class="goods-card__title">{{ item.title }}</h2>
-                <AiTagList :tags="item.aiTags" :limit="3" @select="searchByTag" />
                 <div class="goods-card__meta">
                   <PriceTag :value="item.price" font-size="22px" />
                   <span class="goods-card__fav">
@@ -171,46 +191,36 @@
         </main>
 
         <aside>
-          <div class="hall-aside__sticky">
-            <div class="card rank-card sticker-tilt-r" aria-label="近期爆款榜单">
-              <div class="rank-card__head">
-                <div>
-                  <h3>近期爆款榜</h3>
-                  <p class="muted rank-sub">按收藏数实时更新</p>
-                </div>
-                <router-link to="/ranking" class="rank-more" title="查看完整排行榜">
-                  完整榜单
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
-                </router-link>
-              </div>
-              <div v-if="ranking.length" class="ranking-list">
-                <button
-                  v-for="(item, index) in ranking"
-                  :key="item.id"
-                  class="rank-item"
-                  @click="goDetail(item.id)"
-                >
-                  <span class="rank-item__no">{{ index + 1 }}</span>
-                  <span class="rank-item__thumb" :class="phClass(item.id)">
-                    <img v-if="item.coverImage" :src="item.coverImage" :alt="item.title" />
-                  </span>
-                  <span class="rank-item__info">
-                    <strong class="rank-item__title">{{ item.title }}</strong>
-                    <small class="rank-item__sub">
-                      <span class="p">¥{{ Number(item.price || 0).toFixed(2) }}</span>
-                      <span>收藏 {{ item.favoriteCount || 0 }}</span>
-                    </small>
-                  </span>
-                </button>
-              </div>
-              <p v-else class="muted ranking-empty">暂无榜单数据</p>
-            </div>
+          <div class="card rank-card sticker-tilt-r" aria-label="近期爆款榜单">
+            <h3>近期爆款榜</h3>
+            <p class="muted rank-sub">按收藏数实时更新</p>
+          <div v-if="ranking.length" class="ranking-list">
+            <button
+              v-for="(item, index) in ranking"
+              :key="item.id"
+              class="rank-item"
+              @click="goDetail(item.id)"
+            >
+              <span class="rank-item__no">{{ index + 1 }}</span>
+              <span class="rank-item__thumb" :class="phClass(item.id)">
+                <img v-if="item.coverImage" :src="item.coverImage" :alt="item.title" />
+              </span>
+              <span class="rank-item__info">
+                <strong class="rank-item__title">{{ item.title }}</strong>
+                <small class="rank-item__sub">
+                  <span class="p">¥{{ Number(item.price || 0).toFixed(2) }}</span>
+                  <span>收藏 {{ item.favoriteCount || 0 }}</span>
+                </small>
+              </span>
+            </button>
+          </div>
+          <p v-else class="muted ranking-empty">暂无榜单数据</p>
+          </div>
 
-            <div class="publish-cta sticker-tilt">
-              <h4>宿舍角落在吃灰？</h4>
-              <p>发布 30 秒搞定，AI 自动打标签</p>
-              <router-link to="/publish" class="btn btn--yellow">去发布闲置</router-link>
-            </div>
+          <div class="publish-cta sticker-tilt">
+            <h4>宿舍角落在吃灰？</h4>
+            <p>发布 30 秒搞定，AI 自动打标签</p>
+            <router-link to="/publish" class="btn btn--yellow">去发布闲置</router-link>
           </div>
         </aside>
       </div>
@@ -219,15 +229,14 @@
 </template>
 
 <script setup>
-import { nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
+import { onMounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import DefaultLayout from '@/components/layout/DefaultLayout.vue'
 import CategoryIcon from '@/components/common/CategoryIcon.vue'
-import AiTagList from '@/components/common/AiTagList.vue'
 import LevelBadge from '@/components/common/LevelBadge.vue'
 import PriceTag from '@/components/common/PriceTag.vue'
-import { getCategories, getItemList, getItemRanking, toggleFavorite } from '@/api/item'
+import { getCategories, getAllTags, getItemList, getItemRanking, toggleFavorite } from '@/api/item'
 import { isLoggedIn } from '@/utils/auth'
 
 const PH = ['ph-a', 'ph-b', 'ph-c', 'ph-d', 'ph-e', 'ph-f']
@@ -252,8 +261,14 @@ const pageSize = 12
 const total = ref(0)
 const loading = ref(false)
 const favoriteBusyId = ref(null)
-let priceFilterTimer = null
-let resettingFilters = false
+
+const allTags = ref([])
+const activeTag = ref('')
+const showTagCloud = ref(false)
+
+function toggleTagCloud() {
+  showTagCloud.value = !showTagCloud.value
+}
 
 const filters = reactive({
   keyword: '',
@@ -261,6 +276,7 @@ const filters = reactive({
   minPrice: undefined,
   maxPrice: undefined,
   type: '',
+  tag: '',
   sort: 'random',
 })
 
@@ -275,6 +291,7 @@ function buildParams() {
   if (filters.minPrice !== undefined && filters.minPrice !== null) params.minPrice = filters.minPrice
   if (filters.maxPrice !== undefined && filters.maxPrice !== null) params.maxPrice = filters.maxPrice
   if (filters.type) params.type = filters.type
+  if (filters.tag) params.tag = filters.tag
   return params
 }
 
@@ -285,6 +302,31 @@ async function fetchCategories() {
   } catch {
     categories.value = FALLBACK_CATEGORIES
   }
+}
+
+async function fetchAllTags() {
+  try {
+    const res = await getAllTags()
+    allTags.value = Array.isArray(res.data) ? res.data : []
+  } catch {
+    allTags.value = []
+  }
+}
+
+function filterByTag(tag, categoryId) {
+  if (activeTag.value === tag) {
+    activeTag.value = ''
+    filters.tag = ''
+    filters.categoryId = ''
+  } else {
+    activeTag.value = tag
+    filters.tag = tag
+    filters.categoryId = categoryId
+    // 清除关键词搜索，避免 LIKE 模糊匹配干扰标签的精确筛选
+    filters.keyword = ''
+  }
+  page.value = 1
+  fetchItems()
 }
 
 async function fetchRanking() {
@@ -303,37 +345,19 @@ async function fetchItems() {
   }
 }
 
+function applyPriceFilterNow() {
+  page.value = 1
+  fetchItems()
+}
+
 function handleSearch() {
   page.value = 1
   fetchItems()
 }
 
-function schedulePriceFilter() {
-  if (resettingFilters) return
-  window.clearTimeout(priceFilterTimer)
-  priceFilterTimer = window.setTimeout(() => {
-    priceFilterTimer = null
-    handleSearch()
-  }, 450)
-}
-
-function applyPriceFilterNow() {
-  if (!priceFilterTimer) return
-  window.clearTimeout(priceFilterTimer)
-  priceFilterTimer = null
-  handleSearch()
-}
-
 function quickSearch(keyword) {
   filters.keyword = keyword
   handleSearch()
-}
-
-function searchByTag(tag) {
-  filters.keyword = tag
-  router.replace({ path: '/', query: { keyword: tag } })
-  handleSearch()
-  nextTick(() => document.querySelector('.hall')?.scrollIntoView({ behavior: 'smooth', block: 'start' }))
 }
 
 function clearKeyword() {
@@ -342,18 +366,16 @@ function clearKeyword() {
 }
 
 function resetFilters() {
-  resettingFilters = true
-  window.clearTimeout(priceFilterTimer)
-  priceFilterTimer = null
   filters.keyword = ''
   filters.categoryId = ''
   filters.minPrice = undefined
   filters.maxPrice = undefined
   filters.type = ''
+  filters.tag = ''
   filters.sort = 'random'
+  activeTag.value = ''
   page.value = 1
   fetchItems()
-  nextTick(() => { resettingFilters = false })
 }
 
 function selectCategory(id) {
@@ -384,16 +406,13 @@ async function handleFavorite(item) {
 
 watch(() => filters.sort, handleSearch)
 watch(() => filters.type, handleSearch)
-watch(() => [filters.minPrice, filters.maxPrice], schedulePriceFilter)
 
 onMounted(async () => {
   if (route.query.keyword) {
     filters.keyword = String(route.query.keyword)
   }
-  await Promise.all([fetchCategories(), fetchItems(), fetchRanking()])
+  await Promise.all([fetchCategories(), fetchItems(), fetchRanking(), fetchAllTags()])
 })
-
-onBeforeUnmount(() => window.clearTimeout(priceFilterTimer))
 </script>
 
 <style scoped>
@@ -640,27 +659,58 @@ onBeforeUnmount(() => window.clearTimeout(priceFilterTimer))
 
 .filter-panel {
   margin: 16px 0 22px;
-  padding: 16px 18px;
+  padding: 14px 18px;
   display: flex;
-  align-items: flex-end;
-  justify-content: space-between;
-  gap: 22px;
+  flex-direction: column;
+  gap: 0;
   border: var(--bw) solid var(--ink);
   border-radius: var(--r-m);
   background: var(--paper-deep);
   box-shadow: var(--shadow-s);
 }
 
+.filter-panel__bar {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  flex-wrap: wrap;
+}
+
 .filter-panel__title {
   display: flex;
   align-items: center;
-  gap: 11px;
+  gap: 10px;
   flex-shrink: 0;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  padding: 0;
+  text-align: left;
+  font-family: inherit;
+  color: inherit;
+  transition: opacity .15s;
+}
+
+.filter-panel__title:hover {
+  opacity: .8;
+}
+
+.filter-panel__title:focus-visible {
+  outline: 3px solid var(--blue);
+  outline-offset: 2px;
+  border-radius: var(--r-s);
+}
+
+.filter-panel__title strong {
+  font-family: var(--font-display);
+  font-size: 18px;
+  line-height: 1.2;
+  white-space: nowrap;
 }
 
 .filter-panel__stamp {
-  width: 40px;
-  height: 40px;
+  width: 36px;
+  height: 36px;
   display: grid;
   place-items: center;
   border: var(--bw) solid var(--ink);
@@ -668,36 +718,36 @@ onBeforeUnmount(() => window.clearTimeout(priceFilterTimer))
   background: var(--yellow);
   box-shadow: 2px 2px 0 var(--ink);
   transform: rotate(-4deg);
-  font-size: 19px;
 }
 
-.filter-panel__stamp svg { width: 21px; height: 21px; }
+.filter-panel__stamp svg { width: 19px; height: 19px; }
 
-.filter-panel__title strong {
-  display: block;
-  font-family: var(--font-display);
-  font-size: 19px;
-  line-height: 1.2;
-}
-
-.filter-panel__title small {
-  display: block;
-  margin-top: 2px;
+.filter-panel__chevron {
+  width: 24px;
+  height: 24px;
+  display: grid;
+  place-items: center;
   color: var(--ink-soft);
-  font-size: 11px;
+  transition: transform .25s;
+}
+
+.filter-panel__chevron svg { width: 16px; height: 16px; }
+
+.filter-panel__chevron.open {
+  transform: rotate(180deg);
 }
 
 .advanced-row {
   display: flex;
   align-items: flex-end;
-  justify-content: flex-end;
   gap: 10px;
-  flex-wrap: wrap;
   flex: 1;
+  justify-content: flex-end;
+  flex-wrap: wrap;
 }
 
 .filter-field {
-  min-width: 132px;
+  min-width: 120px;
   margin: 0;
   padding: 0;
   border: 0;
@@ -714,14 +764,14 @@ onBeforeUnmount(() => window.clearTimeout(priceFilterTimer))
 }
 
 .filter-field .select {
-  height: 40px;
+  height: 38px;
   padding-top: 7px;
   padding-bottom: 7px;
   font-size: 13px;
   box-shadow: none;
 }
 
-.price-field { min-width: 280px; }
+.price-field { min-width: 250px; }
 
 .price-range {
   height: 40px;
@@ -765,17 +815,122 @@ onBeforeUnmount(() => window.clearTimeout(priceFilterTimer))
   box-shadow: 2px 2px 0 var(--ink);
 }
 
+/* —— 标签云（按大類分组，可折叠滚动）—— */
+.tag-cloud-wrap {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows .25s ease;
+}
+
+.tag-cloud-wrap.open {
+  grid-template-rows: 1fr;
+}
+
+.tag-cloud-wrap__inner {
+  overflow: hidden;
+}
+
+.tag-cloud {
+  width: 100%;
+  max-height: 280px;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--ink-soft) transparent;
+  margin-top: 14px;
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  background: var(--white);
+  border: var(--bw) solid var(--ink);
+  border-radius: var(--r-s);
+  box-shadow: inset 0 1px 4px rgba(0,0,0,.04);
+}
+
+.tag-cloud::-webkit-scrollbar { width: 6px; }
+.tag-cloud::-webkit-scrollbar-thumb { background: var(--ink-soft); border-radius: 3px; }
+
+.tag-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.tag-group__label {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--ink-soft);
+  text-transform: uppercase;
+  letter-spacing: .5px;
+  padding-bottom: 2px;
+  border-bottom: 1px solid #E5DCC9;
+}
+
+.tag-group__chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.tag-cloud__chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 14px;
+  font-size: 13px;
+  font-weight: 700;
+  background: var(--white);
+  border: 1.5px dashed var(--ink-soft);
+  border-radius: 999px;
+  cursor: pointer;
+  transition: all .18s;
+  color: var(--ink-soft);
+  font-family: var(--font-body);
+}
+
+.tag-cloud__chip:hover {
+  border-style: solid;
+  border-color: var(--ink);
+  background: var(--yellow);
+  color: var(--ink);
+  transform: translate(-1px, -1px);
+  box-shadow: 2px 2px 0 var(--ink);
+}
+
+.tag-cloud__chip.active {
+  border-style: solid;
+  border-color: var(--ink);
+  background: var(--ink);
+  color: var(--paper);
+  box-shadow: var(--shadow-s);
+}
+
+.tag-cloud__count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 9px;
+  background: var(--paper-deep);
+  color: var(--ink-soft);
+  font-size: 10.5px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.tag-cloud__chip.active .tag-cloud__count {
+  background: var(--primary);
+  color: #fff;
+}
+
 .hall {
   display: grid;
   grid-template-columns: 1fr 300px;
   gap: 28px;
   margin-top: 10px;
   align-items: start;
-}
-
-.hall > aside {
-  align-self: stretch;
-  min-height: 100%;
 }
 
 .sort-row {
@@ -942,26 +1097,11 @@ onBeforeUnmount(() => window.clearTimeout(priceFilterTimer))
   color: var(--red);
 }
 
-.hall-aside__sticky {
+.rank-card {
   position: sticky;
   top: 84px;
-  display: flex;
-  flex-direction: column;
-  gap: 24px;
-  max-height: calc(100vh - 104px);
-}
-
-.rank-card {
-  flex: 1 1 auto;
-  min-height: 0;
   padding: 20px;
-  overflow-y: auto;
-  scrollbar-width: thin;
-  scrollbar-color: var(--ink-soft) transparent;
 }
-
-.rank-card::-webkit-scrollbar { width: 6px; }
-.rank-card::-webkit-scrollbar-thumb { background: var(--ink-soft); border-radius: 3px; }
 
 .rank-card h3 {
   font-family: var(--font-display);
@@ -969,27 +1109,6 @@ onBeforeUnmount(() => window.clearTimeout(priceFilterTimer))
   letter-spacing: 1px;
   margin-bottom: 4px;
 }
-
-.rank-card__head {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 12px;
-}
-
-.rank-more {
-  display: inline-flex;
-  align-items: center;
-  gap: 2px;
-  margin-top: 3px;
-  color: var(--primary);
-  font-size: 12px;
-  font-weight: 700;
-  white-space: nowrap;
-}
-
-.rank-more:hover { color: var(--primary-deep); }
-.rank-more svg { width: 15px; height: 15px; }
 
 .rank-sub {
   font-size: 12.5px;
@@ -1090,7 +1209,7 @@ onBeforeUnmount(() => window.clearTimeout(priceFilterTimer))
 }
 
 .publish-cta {
-  flex: 0 0 auto;
+  margin-top: 24px;
   padding: 24px 20px;
   text-align: center;
   background: var(--ink);
@@ -1138,21 +1257,18 @@ onBeforeUnmount(() => window.clearTimeout(priceFilterTimer))
     grid-template-columns: 1fr;
   }
 
-  .hall-aside__sticky {
-    position: static;
-    max-height: none;
-  }
-
   .rank-card {
-    overflow: visible;
+    position: static;
   }
 
-  .filter-panel {
-    align-items: stretch;
-    flex-direction: column;
+  .filter-panel__bar {
+    gap: 12px;
   }
 
-  .advanced-row { justify-content: flex-start; }
+  .advanced-row {
+    justify-content: flex-start;
+    flex: 1 1 100%;
+  }
 }
 
 @media (max-width: 900px) {
@@ -1177,8 +1293,9 @@ onBeforeUnmount(() => window.clearTimeout(priceFilterTimer))
   .searchbar input { padding-right: 2px; font-size: 14px; }
   .searchbar > button[type="submit"] { padding: 0 16px; font-size: 14px; }
   .searchbar > button[type="submit"] .ui-icon { display: none; }
-  .filter-panel { padding: 14px; }
-  .advanced-row { display: grid; grid-template-columns: 1fr auto; }
+  .filter-panel { padding: 12px 14px; }
+  .filter-panel__bar { gap: 8px; }
+  .advanced-row { display: grid; grid-template-columns: 1fr auto; width: 100%; }
   .filter-field { min-width: 0; }
   .price-field { min-width: 0; grid-column: 1 / -1; grid-row: 2; }
   .price-range input { width: 100%; }

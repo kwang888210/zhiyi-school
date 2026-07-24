@@ -10,7 +10,6 @@
         <router-link to="/admin/dashboard" class="nav-tab">📊 数据大盘</router-link>
         <router-link to="/admin/violations" class="nav-tab">⚖️ 违规审核</router-link>
         <router-link to="/admin/chat" class="nav-tab">💬 客服收件箱</router-link>
-        <router-link to="/admin/categories" class="nav-tab">🗂️ 分类管理</router-link>
         <span class="nav-tab active">🔧 内容管理</span>
       </div>
 

@@ -26,6 +26,11 @@ export function getTrendingAiTags(params) {
   return request.get('/item/ranking/tags', { params })
 }
 
+/** 获取全部 AI 标签及出现次数（精细筛选标签云） */
+export function getAllTags() {
+  return request.get('/item/tags')
+}
+
 export function uploadItemImage(file) {
   const formData = new FormData()
   formData.append('file', file)

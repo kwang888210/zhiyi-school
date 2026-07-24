@@ -51,6 +51,14 @@ const routes = [
     meta: { title: '发布商品', requireAuth: true },
   },
 
+  // ── 排行榜（模块三）──
+  {
+    path: '/ranking',
+    name: 'Ranking',
+    component: () => import('@/views/ranking/RankingPage.vue'),
+    meta: { title: '近期爆款榜 - 智易校园' },
+  },
+
   // ── 用户中心（模块一）──
   {
     path: '/user/profile',

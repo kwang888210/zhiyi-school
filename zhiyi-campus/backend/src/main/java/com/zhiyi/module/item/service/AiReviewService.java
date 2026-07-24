@@ -44,6 +44,16 @@ public class AiReviewService {
 
     private static final BigDecimal PREMIUM_DEVICE_FLOOR = new BigDecimal("100.00");
     private static final BigDecimal NEW_DIGITAL_FLOOR = new BigDecimal("10.00");
+    // 本地违规关键词：不依赖 AI API 即可拦截明显的违规内容
+    private static final Pattern VIOLATION_KEYWORDS = Pattern.compile(
+            "(?i)(代写|代考|代课|代签到|代理课|替考|作弊|办假证|办证|刻章|发票代开|刷单|"
+                    + "套现|网贷|裸聊|招嫖|约炮|赌博|博彩|毒品|迷药|枪支|弹药|"
+                    + "假钞|假币|色情|淫秽|盗版|侵权|翻墙|VPN|梯子|黑客|"
+                    + "代发论文|代写论文|代做毕设|代做毕业|"
+                    + "香烟|电子烟|烟草|卖烟|买烟|啤酒|白酒|洋酒|卖酒|买酒|处方药|安眠药|"
+                    + "管制刀具|匕首|电棍|警用|窃听器|针孔摄像|作弊器|"
+                    + "校园贷|高利贷|裸条|传销|直销|拉人头)"
+    );
     private static final Pattern PREMIUM_DEVICE = Pattern.compile(
             "(?i)(iphone|ipad|macbook|airpods|apple\\s*watch|苹果手机|苹果平板|switch|ps[45]|相机)"
     );
@@ -82,9 +92,16 @@ public class AiReviewService {
         if (deterministicViolation != null) {
             return deterministicViolation;
         }
+        ReviewResult keywordViolation = detectContentViolation(dto);
+        if (keywordViolation != null) {
+            return keywordViolation;
+        }
         if (!StringUtils.hasText(apiKey)) {
+            log.warn("AI 审核未配置 API Key，跳过远程审核");
             return ReviewResult.degraded("AI 审核未配置，已转人工复核");
         }
+
+        log.info("AI 审核开始: model={}, title={}", model, dto.getTitle());
 
         Map<String, Object> request = new LinkedHashMap<>();
         request.put("model", model);
@@ -107,7 +124,7 @@ public class AiReviewService {
                     .body(JsonNode.class);
             return parseResponse(response);
         } catch (Exception e) {
-            log.warn("DeepSeek 内容审核失败，发布流程将降级为人工复核: {}", e.getMessage());
+            log.warn("DeepSeek 内容审核失败: model={}, error={}", model, e.toString());
             return ReviewResult.degraded("AI 审核服务暂不可用，已转人工复核");
         }
     }
@@ -133,6 +150,20 @@ public class AiReviewService {
         String reason = "商品价格 ¥" + dto.getPrice().setScale(2)
                 + " 与标题、型号或成色明显不符，疑似虚假价格或交易欺诈";
         return new ReviewResult(true, reason, List.of(), false);
+    }
+
+    /**
+     * 本地违规关键词检测，不依赖 AI API。
+     * 命中则直接拦截，避免 AI Key 未配置时违规内容漏过。
+     */
+    ReviewResult detectContentViolation(PublishItemDTO dto) {
+        String text = dto.getTitle() + " " + dto.getDescription();
+        java.util.regex.Matcher matcher = VIOLATION_KEYWORDS.matcher(text);
+        if (!matcher.find()) {
+            return null;
+        }
+        String matched = matcher.group();
+        return new ReviewResult(true, "内容涉嫌违规，包含禁止发布的关键词：" + matched, List.of(), false);
     }
 
     ReviewResult parseResponse(JsonNode response) {
