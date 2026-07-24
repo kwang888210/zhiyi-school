@@ -28,7 +28,7 @@
               <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
               发闲置
             </router-link>
-            <el-dropdown trigger="click">
+            <el-dropdown trigger="click" popper-class="app-dropdown">
               <span class="user-entry">
                 <UserAvatar :nickname="nickname" :user-id="userId" size="s" />
               </span>

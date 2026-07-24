@@ -74,11 +74,11 @@
           <div class="advanced-row">
             <label class="filter-field">
               <span>发布类型</span>
-              <select v-model="filters.type" class="select">
-                <option value="">全部类型</option>
-                <option value="SELL">出售</option>
-                <option value="BUY">求购</option>
-              </select>
+              <AppSelect
+                v-model="filters.type"
+                :options="TYPE_OPTIONS"
+                aria-label="发布类型"
+              />
             </label>
             <fieldset class="filter-field price-field">
               <legend>价格区间</legend>
@@ -232,6 +232,7 @@
 import { onMounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
+import AppSelect from '@/components/common/AppSelect.vue'
 import DefaultLayout from '@/components/layout/DefaultLayout.vue'
 import CategoryIcon from '@/components/common/CategoryIcon.vue'
 import LevelBadge from '@/components/common/LevelBadge.vue'
@@ -240,6 +241,11 @@ import { getCategories, getAllTags, getItemList, getItemRanking, toggleFavorite 
 import { isLoggedIn } from '@/utils/auth'
 
 const PH = ['ph-a', 'ph-b', 'ph-c', 'ph-d', 'ph-e', 'ph-f']
+const TYPE_OPTIONS = [
+  { label: '全部类型', value: '' },
+  { label: '出售', value: 'SELL' },
+  { label: '求购', value: 'BUY' },
+]
 const FALLBACK_CATEGORIES = [
   { id: 1, name: '数码电子' },
   { id: 2, name: '教材书籍' },

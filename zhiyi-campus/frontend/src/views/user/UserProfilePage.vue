@@ -95,10 +95,13 @@
               </div>
               <div class="field">
                 <label for="p-school">所属学校</label>
-                <select id="p-school" v-model="editForm.schoolId" class="input select">
-                  <option :value="null" disabled>请选择你当前就读的学校</option>
-                  <option v-for="school in schools" :key="school.id" :value="school.id">{{ school.name }}</option>
-                </select>
+                <AppSelect
+                  id="p-school"
+                  v-model="editForm.schoolId"
+                  :options="schoolOptions"
+                  placeholder="请选择你当前就读的学校"
+                  aria-label="所属学校"
+                />
               </div>
               <div class="field">
                 <label for="p-email">学校邮箱 <span class="opt">选填</span></label>
@@ -180,7 +183,18 @@
       </div>
 
       <!-- 注销确认弹窗（密码二次确认） -->
-      <el-dialog v-model="cancelVisible" title="注销账号" width="420px">
+      <el-dialog
+        v-model="cancelVisible"
+        class="app-dialog"
+        modal-class="app-modal"
+        title="注销账号"
+        width="420px"
+        append-to-body
+        align-center
+        :show-close="!cancelling"
+        :close-on-click-modal="!cancelling"
+        :close-on-press-escape="!cancelling"
+      >
         <p class="cancel-warn">
           ⚠️ 此操作不可自助恢复：注销后立即退出登录，无法再使用该账号交易。<br />
           钱包余额 <b>¥{{ user?.walletBalance ?? 0 }}</b> 将随账号冻结，请确认已处理完毕。
@@ -204,6 +218,7 @@
 import { ref, reactive, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
+import AppSelect from '@/components/common/AppSelect.vue'
 import DefaultLayout from '@/components/layout/DefaultLayout.vue'
 import LevelBadge from '@/components/common/LevelBadge.vue'
 import UserAvatar from '@/components/common/UserAvatar.vue'
@@ -228,6 +243,9 @@ const editForm = reactive({
   college: '', grade: '', dormitory: '',
 })
 const schools = ref([])
+const schoolOptions = computed(() =>
+  schools.value.map((school) => ({ label: school.name, value: school.id }))
+)
 const selectedSchool = computed(() =>
   schools.value.find((school) => school.id === editForm.schoolId) || null
 )

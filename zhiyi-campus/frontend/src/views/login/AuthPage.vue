@@ -120,10 +120,15 @@
             </div>
             <div class="field">
               <label for="r-school">所属学校 <span class="req">*</span></label>
-              <select id="r-school" v-model="regForm.schoolId" class="input select" :disabled="schoolsLoading">
-                <option :value="null" disabled>{{ schoolsLoading ? '学校列表加载中…' : '请选择你就读的学校' }}</option>
-                <option v-for="s in schools" :key="s.id" :value="s.id">{{ s.name }}</option>
-              </select>
+              <AppSelect
+                id="r-school"
+                v-model="regForm.schoolId"
+                :options="schoolOptions"
+                :placeholder="schoolsLoading ? '学校列表加载中…' : '请选择你就读的学校'"
+                :disabled="schoolsLoading"
+                :loading="schoolsLoading"
+                aria-label="所属学校"
+              />
               <div v-if="schoolsError" class="school-load-error" role="alert">
                 <span>学校列表加载失败</span>
                 <button class="school-retry" type="button" :disabled="schoolsLoading" @click="fetchSchools">重新加载</button>
@@ -240,6 +245,7 @@
 import { ref, reactive, computed, onMounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { ElMessage } from 'element-plus'
+import AppSelect from '@/components/common/AppSelect.vue'
 import { login, register, getSecurityQuestion, getSecurityQuestions, resetPassword, getSchools } from '@/api/auth'
 import { useUserStore } from '@/stores/user'
 
@@ -292,6 +298,9 @@ const regForm = reactive({
 
 // —— 学校下拉 + 学校邮箱后缀校验（A2/A3）——
 const schools = ref([])
+const schoolOptions = computed(() =>
+  schools.value.map((school) => ({ label: school.name, value: school.id }))
+)
 const schoolsLoading = ref(false)
 const schoolsError = ref(false)
 

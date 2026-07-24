@@ -29,12 +29,12 @@
               placeholder="搜索商品标题或输入 ID"
               @keydown.enter="searchItems"
             />
-            <select class="select" style="width:130px;flex-shrink:0" v-model="itemForm.statusFilter">
-              <option value="">全部状态</option>
-              <option value="ON_SALE">在售</option>
-              <option value="OFF_SHELF">已下架</option>
-              <option value="SOLD">已售出</option>
-            </select>
+            <AppSelect
+              v-model="itemForm.statusFilter"
+              class="manage-status-select"
+              :options="STATUS_FILTER_OPTIONS"
+              aria-label="商品状态"
+            />
             <button class="btn btn--sm" @click="searchItems" :disabled="itemForm.searching">
               {{ itemForm.searching ? '搜索中' : '搜索' }}
             </button>
@@ -161,10 +161,18 @@
 <script setup>
 import { reactive } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
+import AppSelect from '@/components/common/AppSelect.vue'
 import DefaultLayout from '@/components/layout/DefaultLayout.vue'
 import { forceOffShelf, resetUserPassword, searchUsers, searchAdminItems } from '@/api/admin'
 
 // ---- 强制下架 ----
+const STATUS_FILTER_OPTIONS = [
+  { label: '全部状态', value: '' },
+  { label: '在售', value: 'ON_SALE' },
+  { label: '已下架', value: 'OFF_SHELF' },
+  { label: '已售出', value: 'SOLD' },
+]
+
 const itemForm = reactive({
   keyword: '',
   statusFilter: '',
@@ -401,6 +409,18 @@ function avatarColor(id) {
   display: flex; gap: 8px;
 }
 .search-row .input { flex: 1; }
+.manage-status-select {
+  width: 150px;
+  flex: 0 0 150px;
+}
+
+@media (max-width: 520px) {
+  .search-row { flex-wrap: wrap; }
+  .manage-status-select {
+    width: 100%;
+    flex-basis: 100%;
+  }
+}
 
 /* ---- 商品搜索结果列表 ---- */
 .item-list {
