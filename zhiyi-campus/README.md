@@ -27,8 +27,7 @@ mvn spring-boot:run
 ### 3. 前端
 ```bash
 cd zhiyi-campus/frontend
-npm install
-npm run dev
+npm install && npm run dev
 # → http://localhost:3000
 ```
 
