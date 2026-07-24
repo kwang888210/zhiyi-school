@@ -79,11 +79,15 @@
           </el-form-item>
 
           <div class="submit-bar">
-            <span class="submit-note"><svg viewBox="0 0 24 24" fill="none" stroke="#2F9E62" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10Z"/><path d="m9 12 2 2 4-4"/></svg>{{ editMode ? '保存后将重新完成合规审核' : '提交后 AI 将快速完成合规审核' }}</span>
+            <span class="submit-note" aria-live="polite"><svg viewBox="0 0 24 24" fill="none" stroke="#2F9E62" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10Z"/><path d="m9 12 2 2 4-4"/></svg>{{ submitNote }}</span>
             <div class="submit-actions">
               <button v-if="!editMode" class="btn" type="button" @click="saveDraft">存草稿</button>
               <router-link v-else :to="`/item/${route.params.id}`" class="btn">取消</router-link>
-              <button class="btn btn--primary btn--lg" type="button" :disabled="submitting || uploading || pageLoading" @click="handleSubmit">{{ editMode ? '保存修改' : '提交发布' }}<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m22 2-7 20-4-9-9-4Z"/><path d="M22 2 11 13"/></svg></button>
+              <button class="btn btn--primary btn--lg submit-button" type="button" :disabled="submitting || uploading || pageLoading" :aria-busy="submitting" @click="handleSubmit">
+                <svg v-if="submitting" class="icon submit-spinner" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><circle cx="12" cy="12" r="9" opacity=".3"/><path d="M21 12a9 9 0 0 0-9-9"/></svg>
+                <svg v-else class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m22 2-7 20-4-9-9-4Z"/><path d="M22 2 11 13"/></svg>
+                {{ submitButtonText }}
+              </button>
             </div>
           </div>
         </el-form>
@@ -107,7 +111,7 @@
 </template>
 
 <script setup>
-import { computed, onMounted, reactive, ref } from 'vue'
+import { computed, nextTick, onMounted, reactive, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import DefaultLayout from '@/components/layout/DefaultLayout.vue'
@@ -132,6 +136,17 @@ const submitting = ref(false)
 const pageLoading = ref(false)
 const form = reactive({ type: 'SELL', title: '', description: '', categoryId: '', price: 1, images: [], tradeLocation: '' })
 const editMode = computed(() => Boolean(route.params.id))
+const submitButtonText = computed(() => {
+  if (uploading.value) return '图片上传中'
+  if (submitting.value) return editMode.value ? 'AI 复审中' : 'AI 审核中'
+  if (pageLoading.value) return '数据加载中'
+  return editMode.value ? '保存修改' : '提交发布'
+})
+const submitNote = computed(() => {
+  if (uploading.value) return '图片正在上传，完成后即可提交'
+  if (submitting.value) return 'AI 正在审核内容并生成标签，请稍候'
+  return editMode.value ? '保存后将重新完成合规审核' : '提交后 AI 将快速完成合规审核'
+})
 const previewTags = computed(() => {
   const words = form.title.match(/[A-Za-z][A-Za-z0-9]*|[\u4e00-\u9fa5]{2,4}/g) || []
   return [...new Set(words)].slice(0, 4).length ? [...new Set(words)].slice(0, 4) : ['校园闲置', '当面交易', '好物']
@@ -142,7 +157,7 @@ const rules = {
   categoryId: [{ required: true, message: '请选择所属大类', trigger: 'change' }],
   price: [{ required: true, type: 'number', min: 0.01, message: '请输入有效价格', trigger: 'change' }],
   tradeLocation: [{ required: true, message: '请输入交易地点', trigger: 'blur' }],
-  description: [{ required: true, message: '请输入商品描述', trigger: 'blur' }, { min: 10, max: 500, message: '描述需为10-500字', trigger: 'blur' }],
+  description: [{ required: true, message: '请输入商品描述', trigger: 'blur' }, { max: 500, message: '描述不能超过500字', trigger: 'blur' }],
   images: [{ type: 'array', required: true, min: 1, message: '请至少上传1张图片', trigger: 'change' }],
 }
 
@@ -179,7 +194,14 @@ async function handleFileChange(uploadFile) {
 function removeImage(index) { form.images.splice(index, 1); formRef.value?.validateField('images') }
 function saveDraft() { localStorage.setItem('zhiyi-publish-draft', JSON.stringify({ ...form, images: [] })); ElMessage.success('草稿已保存在本机') }
 async function handleSubmit() {
-  await formRef.value.validate()
+  if (submitting.value) return
+  const valid = await formRef.value.validate().catch(() => false)
+  if (!valid) {
+    ElMessage.warning('请检查并补全标红的必填项')
+    await nextTick()
+    document.querySelector('.pub-card .el-form-item.is-error')?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    return
+  }
   submitting.value = true
   try {
     const res = editMode.value
@@ -188,6 +210,8 @@ async function handleSubmit() {
     if (!editMode.value) localStorage.removeItem('zhiyi-publish-draft')
     ElMessage.success(editMode.value ? '修改成功' : '发布成功，已进入商品大厅')
     router.push(`/item/${res.data.id}`)
+  } catch {
+    // 具体错误由统一请求拦截器提示。
   } finally { submitting.value = false }
 }
 onMounted(async () => {
@@ -247,6 +271,9 @@ onMounted(async () => {
 .submit-note { color: var(--ink-soft); font-size: 13px; display: flex; align-items: center; gap: 7px; }
 .submit-note svg { width: 17px; height: 17px; flex: 0 0 17px; }
 .submit-actions { display: flex; align-items: center; gap: 12px; }
+.submit-button { min-width: 146px; }
+.submit-spinner { animation: submit-spin .8s linear infinite; }
+@keyframes submit-spin { to { transform: rotate(360deg); } }
 .ai-panel { padding: 24px; position: sticky; top: 84px; }
 .ai-panel h2 { font-family: var(--font-display); font-size: 21px; display: flex; align-items: center; gap: 9px; margin-bottom: 14px; }
 .bot { width: 34px; height: 34px; border: var(--bw) solid var(--ink); border-radius: var(--r-s); background: var(--yellow); display: grid; place-items: center; transform: rotate(-5deg); box-shadow: 2px 2px 0 var(--ink); }

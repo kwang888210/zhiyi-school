@@ -22,6 +22,10 @@ export function getItemRanking(params) {
   return request.get('/item/ranking', { params })
 }
 
+export function getTrendingAiTags(params) {
+  return request.get('/item/ranking/tags', { params })
+}
+
 export function uploadItemImage(file) {
   const formData = new FormData()
   formData.append('file', file)

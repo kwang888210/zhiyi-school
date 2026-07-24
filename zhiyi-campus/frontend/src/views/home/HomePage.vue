@@ -81,9 +81,9 @@
           <fieldset class="filter-field price-field">
             <legend>价格区间</legend>
             <div class="price-range">
-              <span>¥</span><input v-model.number="filters.minPrice" type="number" min="0" step="1" placeholder="最低价">
+              <span>¥</span><input v-model.number="filters.minPrice" type="number" min="0" step="1" placeholder="最低价" @blur="applyPriceFilterNow" @keyup.enter="applyPriceFilterNow">
               <i>—</i>
-              <span>¥</span><input v-model.number="filters.maxPrice" type="number" min="0" step="1" placeholder="最高价">
+              <span>¥</span><input v-model.number="filters.maxPrice" type="number" min="0" step="1" placeholder="最高价" @blur="applyPriceFilterNow" @keyup.enter="applyPriceFilterNow">
             </div>
           </fieldset>
           <button class="btn filter-reset" type="button" :disabled="loading" @click="resetFilters">
@@ -122,6 +122,7 @@
               </div>
               <div class="goods-card__body">
                 <h2 class="goods-card__title">{{ item.title }}</h2>
+                <AiTagList :tags="item.aiTags" :limit="3" @select="searchByTag" />
                 <div class="goods-card__meta">
                   <PriceTag :value="item.price" font-size="22px" />
                   <span class="goods-card__fav">
@@ -170,36 +171,46 @@
         </main>
 
         <aside>
-          <div class="card rank-card sticker-tilt-r" aria-label="近期爆款榜单">
-            <h3>近期爆款榜</h3>
-            <p class="muted rank-sub">按收藏数实时更新</p>
-          <div v-if="ranking.length" class="ranking-list">
-            <button
-              v-for="(item, index) in ranking"
-              :key="item.id"
-              class="rank-item"
-              @click="goDetail(item.id)"
-            >
-              <span class="rank-item__no">{{ index + 1 }}</span>
-              <span class="rank-item__thumb" :class="phClass(item.id)">
-                <img v-if="item.coverImage" :src="item.coverImage" :alt="item.title" />
-              </span>
-              <span class="rank-item__info">
-                <strong class="rank-item__title">{{ item.title }}</strong>
-                <small class="rank-item__sub">
-                  <span class="p">¥{{ Number(item.price || 0).toFixed(2) }}</span>
-                  <span>收藏 {{ item.favoriteCount || 0 }}</span>
-                </small>
-              </span>
-            </button>
-          </div>
-          <p v-else class="muted ranking-empty">暂无榜单数据</p>
-          </div>
+          <div class="hall-aside__sticky">
+            <div class="card rank-card sticker-tilt-r" aria-label="近期爆款榜单">
+              <div class="rank-card__head">
+                <div>
+                  <h3>近期爆款榜</h3>
+                  <p class="muted rank-sub">按收藏数实时更新</p>
+                </div>
+                <router-link to="/ranking" class="rank-more" title="查看完整排行榜">
+                  完整榜单
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
+                </router-link>
+              </div>
+              <div v-if="ranking.length" class="ranking-list">
+                <button
+                  v-for="(item, index) in ranking"
+                  :key="item.id"
+                  class="rank-item"
+                  @click="goDetail(item.id)"
+                >
+                  <span class="rank-item__no">{{ index + 1 }}</span>
+                  <span class="rank-item__thumb" :class="phClass(item.id)">
+                    <img v-if="item.coverImage" :src="item.coverImage" :alt="item.title" />
+                  </span>
+                  <span class="rank-item__info">
+                    <strong class="rank-item__title">{{ item.title }}</strong>
+                    <small class="rank-item__sub">
+                      <span class="p">¥{{ Number(item.price || 0).toFixed(2) }}</span>
+                      <span>收藏 {{ item.favoriteCount || 0 }}</span>
+                    </small>
+                  </span>
+                </button>
+              </div>
+              <p v-else class="muted ranking-empty">暂无榜单数据</p>
+            </div>
 
-          <div class="publish-cta sticker-tilt">
-            <h4>宿舍角落在吃灰？</h4>
-            <p>发布 30 秒搞定，AI 自动打标签</p>
-            <router-link to="/publish" class="btn btn--yellow">去发布闲置</router-link>
+            <div class="publish-cta sticker-tilt">
+              <h4>宿舍角落在吃灰？</h4>
+              <p>发布 30 秒搞定，AI 自动打标签</p>
+              <router-link to="/publish" class="btn btn--yellow">去发布闲置</router-link>
+            </div>
           </div>
         </aside>
       </div>
@@ -208,11 +219,12 @@
 </template>
 
 <script setup>
-import { onMounted, reactive, ref, watch } from 'vue'
+import { nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import DefaultLayout from '@/components/layout/DefaultLayout.vue'
 import CategoryIcon from '@/components/common/CategoryIcon.vue'
+import AiTagList from '@/components/common/AiTagList.vue'
 import LevelBadge from '@/components/common/LevelBadge.vue'
 import PriceTag from '@/components/common/PriceTag.vue'
 import { getCategories, getItemList, getItemRanking, toggleFavorite } from '@/api/item'
@@ -240,6 +252,8 @@ const pageSize = 12
 const total = ref(0)
 const loading = ref(false)
 const favoriteBusyId = ref(null)
+let priceFilterTimer = null
+let resettingFilters = false
 
 const filters = reactive({
   keyword: '',
@@ -294,9 +308,32 @@ function handleSearch() {
   fetchItems()
 }
 
+function schedulePriceFilter() {
+  if (resettingFilters) return
+  window.clearTimeout(priceFilterTimer)
+  priceFilterTimer = window.setTimeout(() => {
+    priceFilterTimer = null
+    handleSearch()
+  }, 450)
+}
+
+function applyPriceFilterNow() {
+  if (!priceFilterTimer) return
+  window.clearTimeout(priceFilterTimer)
+  priceFilterTimer = null
+  handleSearch()
+}
+
 function quickSearch(keyword) {
   filters.keyword = keyword
   handleSearch()
+}
+
+function searchByTag(tag) {
+  filters.keyword = tag
+  router.replace({ path: '/', query: { keyword: tag } })
+  handleSearch()
+  nextTick(() => document.querySelector('.hall')?.scrollIntoView({ behavior: 'smooth', block: 'start' }))
 }
 
 function clearKeyword() {
@@ -305,6 +342,9 @@ function clearKeyword() {
 }
 
 function resetFilters() {
+  resettingFilters = true
+  window.clearTimeout(priceFilterTimer)
+  priceFilterTimer = null
   filters.keyword = ''
   filters.categoryId = ''
   filters.minPrice = undefined
@@ -313,6 +353,7 @@ function resetFilters() {
   filters.sort = 'random'
   page.value = 1
   fetchItems()
+  nextTick(() => { resettingFilters = false })
 }
 
 function selectCategory(id) {
@@ -343,6 +384,7 @@ async function handleFavorite(item) {
 
 watch(() => filters.sort, handleSearch)
 watch(() => filters.type, handleSearch)
+watch(() => [filters.minPrice, filters.maxPrice], schedulePriceFilter)
 
 onMounted(async () => {
   if (route.query.keyword) {
@@ -350,6 +392,8 @@ onMounted(async () => {
   }
   await Promise.all([fetchCategories(), fetchItems(), fetchRanking()])
 })
+
+onBeforeUnmount(() => window.clearTimeout(priceFilterTimer))
 </script>
 
 <style scoped>
@@ -729,6 +773,11 @@ onMounted(async () => {
   align-items: start;
 }
 
+.hall > aside {
+  align-self: stretch;
+  min-height: 100%;
+}
+
 .sort-row {
   display: flex;
   align-items: center;
@@ -893,11 +942,26 @@ onMounted(async () => {
   color: var(--red);
 }
 
-.rank-card {
+.hall-aside__sticky {
   position: sticky;
   top: 84px;
-  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  max-height: calc(100vh - 104px);
 }
+
+.rank-card {
+  flex: 1 1 auto;
+  min-height: 0;
+  padding: 20px;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--ink-soft) transparent;
+}
+
+.rank-card::-webkit-scrollbar { width: 6px; }
+.rank-card::-webkit-scrollbar-thumb { background: var(--ink-soft); border-radius: 3px; }
 
 .rank-card h3 {
   font-family: var(--font-display);
@@ -905,6 +969,27 @@ onMounted(async () => {
   letter-spacing: 1px;
   margin-bottom: 4px;
 }
+
+.rank-card__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.rank-more {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  margin-top: 3px;
+  color: var(--primary);
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.rank-more:hover { color: var(--primary-deep); }
+.rank-more svg { width: 15px; height: 15px; }
 
 .rank-sub {
   font-size: 12.5px;
@@ -1005,7 +1090,7 @@ onMounted(async () => {
 }
 
 .publish-cta {
-  margin-top: 24px;
+  flex: 0 0 auto;
   padding: 24px 20px;
   text-align: center;
   background: var(--ink);
@@ -1053,8 +1138,13 @@ onMounted(async () => {
     grid-template-columns: 1fr;
   }
 
-  .rank-card {
+  .hall-aside__sticky {
     position: static;
+    max-height: none;
+  }
+
+  .rank-card {
+    overflow: visible;
   }
 
   .filter-panel {

@@ -14,6 +14,7 @@
             </div>
             <div class="fav-card__body">
               <div class="fav-card__title">{{ item.title }}</div>
+              <AiTagList :tags="item.aiTags" :limit="3" @select="goTag" />
               <div class="fav-card__foot">
                 <PriceTag :value="item.price" />
                 <button class="btn btn--sm" :disabled="acting" @click.stop="handleUnfavorite(item)">
@@ -49,6 +50,7 @@ import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import DefaultLayout from '@/components/layout/DefaultLayout.vue'
+import AiTagList from '@/components/common/AiTagList.vue'
 import PriceTag from '@/components/common/PriceTag.vue'
 import { getMyFavorites, toggleFavorite } from '@/api/item'
 
@@ -78,6 +80,10 @@ function mainImage(item) {
 
 function goDetail(item) {
   router.push(`/item/${item.id}`)
+}
+
+function goTag(tag) {
+  router.push({ path: '/', query: { keyword: tag } })
 }
 
 async function fetchFavorites() {
@@ -123,7 +129,7 @@ onMounted(fetchFavorites)
 .fav-card__img img { width: 100%; height: 100%; object-fit: cover; }
 .fav-card__state { position: absolute; top: 10px; left: 10px; }
 
-.fav-card__body { padding: 12px 14px 14px; }
+.fav-card__body { padding: 12px 14px 14px; display: flex; flex-direction: column; gap: 8px; }
 
 .fav-card__title {
   font-weight: 700;
@@ -140,7 +146,7 @@ onMounted(fetchFavorites)
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-top: 8px;
+  margin-top: auto;
 }
 
 .empty-card {
