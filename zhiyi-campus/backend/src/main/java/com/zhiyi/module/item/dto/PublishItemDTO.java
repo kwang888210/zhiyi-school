@@ -19,7 +19,7 @@ public class PublishItemDTO {
     private String type;
 
     @NotBlank(message = "标题不能为空")
-    @Size(max = 50, message = "标题不能超过50字")
+    @Size(min = 2, max = 50, message = "标题需为2-50字")
     private String title;
 
     @NotBlank(message = "描述不能为空")

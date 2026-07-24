@@ -13,6 +13,12 @@ const routes = [
     meta: { title: '商品大厅' },
   },
   {
+    path: '/ranking',
+    name: 'Ranking',
+    component: () => import('@/views/ranking/RankingPage.vue'),
+    meta: { title: '近期爆款榜 - 智易校园' },
+  },
+  {
     path: '/login',
     name: 'Login',
     component: () => import('@/views/login/LoginPage.vue'),

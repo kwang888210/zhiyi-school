@@ -45,7 +45,7 @@
                 编辑
               </router-link>
               <button v-if="item.status === 'ON_SALE'" class="btn btn--sm" :disabled="acting" @click="handleOffShelf(item)">下架</button>
-              <button v-if="item.status === 'OFF_SHELF'" class="btn btn--sm btn--green" :disabled="acting" @click="handleRelist(item)">重新上架</button>
+              <button v-if="item.status === 'OFF_SHELF'" class="btn btn--sm btn--green" :disabled="acting" title="重新上架前将再次进行 AI 审核" @click="handleRelist(item)">重新上架</button>
               <button v-if="item.status === 'ON_SALE' || item.status === 'OFF_SHELF'" class="btn btn--sm btn--danger" :disabled="acting" @click="handleDelete(item)">删除</button>
             </div>
           </article>
@@ -144,10 +144,15 @@ async function handleOffShelf(item) {
 }
 
 async function handleRelist(item) {
+  try {
+    await ElMessageBox.confirm(`重新上架「${item.title}」前将再次进行 AI 审核，是否继续？`, '重新上架', {
+      confirmButtonText: '审核并上架', cancelButtonText: '取消', type: 'info',
+    })
+  } catch { return }
   acting.value = true
   try {
     await relistItem(item.id)
-    ElMessage.success('已重新上架')
+    ElMessage.success('AI 审核通过，已重新上架')
     fetchItems()
   } catch (e) { /* 提示由 request.js 处理 */ } finally { acting.value = false }
 }
