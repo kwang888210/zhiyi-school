@@ -28,6 +28,7 @@ import org.springframework.util.StringUtils;
 
 import java.math.BigDecimal;
 import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/item")
@@ -68,12 +69,13 @@ public class ItemController {
                                           @RequestParam(required = false) BigDecimal minPrice,
                                           @RequestParam(required = false) BigDecimal maxPrice,
                                           @RequestParam(required = false) String type,
+                                          @RequestParam(required = false) String tag,
                                           @RequestParam(defaultValue = "random") String sort,
                                           @RequestParam(defaultValue = "1") int page,
                                           @RequestParam(defaultValue = "12") int size,
                                           HttpServletRequest request) {
         return Result.ok(marketplaceService.listOnSaleItems(
-                keyword, categoryId, minPrice, maxPrice, sort, type, page, size, optionalCurrentUser(request)));
+                keyword, categoryId, minPrice, maxPrice, sort, type, tag, page, size, optionalCurrentUser(request)));
     }
 
     @GetMapping("/search")
@@ -82,12 +84,18 @@ public class ItemController {
                                             @RequestParam(required = false) BigDecimal minPrice,
                                             @RequestParam(required = false) BigDecimal maxPrice,
                                             @RequestParam(required = false) String type,
+                                            @RequestParam(required = false) String tag,
                                             @RequestParam(defaultValue = "latest") String sort,
                                             @RequestParam(defaultValue = "1") int page,
                                             @RequestParam(defaultValue = "12") int size,
                                             HttpServletRequest request) {
         return Result.ok(marketplaceService.listOnSaleItems(
-                keyword, categoryId, minPrice, maxPrice, sort, type, page, size, optionalCurrentUser(request)));
+                keyword, categoryId, minPrice, maxPrice, sort, type, tag, page, size, optionalCurrentUser(request)));
+    }
+
+    @GetMapping("/tags")
+    public Result<List<Map<String, Object>>> allTags() {
+        return Result.ok(marketplaceService.getAllTags());
     }
 
     @GetMapping("/ranking")

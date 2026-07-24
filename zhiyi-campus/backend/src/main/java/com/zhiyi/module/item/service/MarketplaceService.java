@@ -61,18 +61,71 @@ public class MarketplaceService {
                 .orderByAsc(Category::getId));
     }
 
+    /**
+     * 按商品大类聚合 AI 标签，用于前端"精细筛选"分组标签云。
+     * 返回结构：[{categoryId, categoryName, tags: [{name, count}]}]
+     */
+    public List<Map<String, Object>> getAllTags() {
+        // 加载大类名称映射
+        Map<Long, String> catNames = categoryMapper.selectList(
+                new LambdaQueryWrapper<Category>().select(Category::getId, Category::getName))
+                .stream().collect(Collectors.toMap(Category::getId, Category::getName));
+
+        // 查出所有在售商品（只需 category_id + ai_tags）
+        List<Item> items = itemMapper.selectList(new LambdaQueryWrapper<Item>()
+                .eq(Item::getStatus, "ON_SALE")
+                .select(Item::getCategoryId, Item::getAiTags));
+
+        // categoryId → tag → count
+        Map<Long, Map<String, Long>> grouped = new LinkedHashMap<>();
+        for (Item item : items) {
+            Long cid = item.getCategoryId();
+            Map<String, Long> tagMap = grouped.computeIfAbsent(cid, k -> new LinkedHashMap<>());
+            for (String tag : parseJsonArray(item.getAiTags())) {
+                if (StringUtils.hasText(tag)) {
+                    tagMap.merge(tag.trim(), 1L, Long::sum);
+                }
+            }
+        }
+
+        // 组装返回：按大类 sort_order 排序，每类内的标签按频次降序
+        List<Category> sortedCats = categoryMapper.selectList(
+                new LambdaQueryWrapper<Category>().orderByAsc(Category::getSortOrder));
+        List<Map<String, Object>> result = new ArrayList<>();
+        for (Category cat : sortedCats) {
+            Map<String, Long> tagMap = grouped.get(cat.getId());
+            if (tagMap == null || tagMap.isEmpty()) continue;
+            List<Map<String, Object>> tags = tagMap.entrySet().stream()
+                    .sorted(Map.Entry.<String, Long>comparingByValue().reversed())
+                    .map(e -> {
+                        Map<String, Object> t = new LinkedHashMap<>();
+                        t.put("name", e.getKey());
+                        t.put("count", e.getValue());
+                        return t;
+                    })
+                    .collect(Collectors.toList());
+            Map<String, Object> group = new LinkedHashMap<>();
+            group.put("categoryId", cat.getId());
+            group.put("categoryName", cat.getName());
+            group.put("tags", tags);
+            result.add(group);
+        }
+        return result;
+    }
+
     public IPage<ItemCardVO> listOnSaleItems(String keyword,
                                             Long categoryId,
                                             BigDecimal minPrice,
                                             BigDecimal maxPrice,
                                             String sort,
                                             String type,
+                                            String tag,
                                             int page,
                                             int size,
                                             Long currentUserId) {
         Page<Item> itemPage = itemMapper.selectPage(
                 new Page<>(Math.max(page, 1), normalizeSize(size)),
-                buildOnSaleWrapper(keyword, categoryId, minPrice, maxPrice, sort, type)
+                buildOnSaleWrapper(keyword, categoryId, minPrice, maxPrice, sort, type, tag)
         );
 
         Page<ItemCardVO> result = new Page<>(itemPage.getCurrent(), itemPage.getSize(), itemPage.getTotal());
@@ -255,7 +308,8 @@ public class MarketplaceService {
                                                        BigDecimal minPrice,
                                                        BigDecimal maxPrice,
                                                        String sort,
-                                                       String type) {
+                                                       String type,
+                                                       String tag) {
         LambdaQueryWrapper<Item> wrapper = new LambdaQueryWrapper<Item>()
                 .eq(Item::getStatus, "ON_SALE");
         if (StringUtils.hasText(keyword)) {
@@ -275,6 +329,12 @@ public class MarketplaceService {
         }
         if (StringUtils.hasText(type)) {
             wrapper.eq(Item::getType, type.trim().toUpperCase());
+        }
+        if (StringUtils.hasText(tag)) {
+            // 用 LIKE "\"%tag%\"" 精确匹配 JSON 数组中的标签名
+            // 引号包裹防止 "全新" 误匹配 "全新未拆封" 等包含关系
+            String trimmed = tag.trim();
+            wrapper.like(Item::getAiTags, "\"" + trimmed + "\"");
         }
         applySort(wrapper, sort);
         return wrapper;

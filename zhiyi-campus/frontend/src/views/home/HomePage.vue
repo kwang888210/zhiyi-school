@@ -65,31 +65,52 @@
       </div>
 
       <section class="filter-panel">
-        <div class="filter-panel__title">
-          <span class="filter-panel__stamp"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5h16l-6 7v5l-4 2v-7Z"/></svg></span>
-          <div><strong>精细筛选</strong><small>缩小范围，快点找到那件好物</small></div>
-        </div>
-        <div class="advanced-row">
-          <label class="filter-field">
-            <span>发布类型</span>
-            <select v-model="filters.type" class="select">
-              <option value="">全部类型</option>
-              <option value="SELL">出售</option>
-              <option value="BUY">求购</option>
-            </select>
-          </label>
-          <fieldset class="filter-field price-field">
-            <legend>价格区间</legend>
-            <div class="price-range">
-              <span>¥</span><input v-model.number="filters.minPrice" type="number" min="0" step="1" placeholder="最低价">
-              <i>—</i>
-              <span>¥</span><input v-model.number="filters.maxPrice" type="number" min="0" step="1" placeholder="最高价">
-            </div>
-          </fieldset>
-          <button class="btn filter-reset" type="button" :disabled="loading" @click="resetFilters">
-            <svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 11a8 8 0 1 0-2.34 5.66"/><path d="M20 4v7h-7"/></svg>
-            重置
+        <div class="filter-panel__bar">
+          <button class="filter-panel__title" type="button" :aria-expanded="showTagCloud" @click="toggleTagCloud">
+            <span class="filter-panel__stamp"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5h16l-6 7v5l-4 2v-7Z"/></svg></span>
+            <strong>精细筛选</strong>
+            <span class="filter-panel__chevron" :class="{ open: showTagCloud }"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="m6 9 6 6 6-6"/></svg></span>
           </button>
+          <div class="advanced-row">
+            <label class="filter-field">
+              <span>发布类型</span>
+              <select v-model="filters.type" class="select">
+                <option value="">全部类型</option>
+                <option value="SELL">出售</option>
+                <option value="BUY">求购</option>
+              </select>
+            </label>
+            <fieldset class="filter-field price-field">
+              <legend>价格区间</legend>
+              <div class="price-range">
+                <span>¥</span><input v-model.number="filters.minPrice" type="number" min="0" step="1" placeholder="最低价" @blur="applyPriceFilterNow" @keyup.enter="applyPriceFilterNow">
+                <i>—</i>
+                <span>¥</span><input v-model.number="filters.maxPrice" type="number" min="0" step="1" placeholder="最高价" @blur="applyPriceFilterNow" @keyup.enter="applyPriceFilterNow">
+              </div>
+            </fieldset>
+            <button class="btn filter-reset" type="button" :disabled="loading" @click="resetFilters">
+              <svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 11a8 8 0 1 0-2.34 5.66"/><path d="M20 4v7h-7"/></svg>
+              重置
+            </button>
+          </div>
+        </div>
+        <div class="tag-cloud-wrap" :class="{ open: showTagCloud && allTags.length }">
+          <div class="tag-cloud-wrap__inner">
+            <div class="tag-cloud">
+              <div v-for="group in allTags" :key="group.categoryId" class="tag-group">
+                <span class="tag-group__label">{{ group.categoryName }}</span>
+                <div class="tag-group__chips">
+                  <button
+                    v-for="tag in group.tags"
+                    :key="tag.name"
+                    class="tag-cloud__chip"
+                    :class="{ active: activeTag === tag.name }"
+                    @click="filterByTag(tag.name, group.categoryId)"
+                  >{{ tag.name }}<span class="tag-cloud__count">{{ tag.count }}</span></button>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
       </section>
 
@@ -215,7 +236,7 @@ import DefaultLayout from '@/components/layout/DefaultLayout.vue'
 import CategoryIcon from '@/components/common/CategoryIcon.vue'
 import LevelBadge from '@/components/common/LevelBadge.vue'
 import PriceTag from '@/components/common/PriceTag.vue'
-import { getCategories, getItemList, getItemRanking, toggleFavorite } from '@/api/item'
+import { getCategories, getAllTags, getItemList, getItemRanking, toggleFavorite } from '@/api/item'
 import { isLoggedIn } from '@/utils/auth'
 
 const PH = ['ph-a', 'ph-b', 'ph-c', 'ph-d', 'ph-e', 'ph-f']
@@ -241,12 +262,21 @@ const total = ref(0)
 const loading = ref(false)
 const favoriteBusyId = ref(null)
 
+const allTags = ref([])
+const activeTag = ref('')
+const showTagCloud = ref(false)
+
+function toggleTagCloud() {
+  showTagCloud.value = !showTagCloud.value
+}
+
 const filters = reactive({
   keyword: '',
   categoryId: '',
   minPrice: undefined,
   maxPrice: undefined,
   type: '',
+  tag: '',
   sort: 'random',
 })
 
@@ -261,6 +291,7 @@ function buildParams() {
   if (filters.minPrice !== undefined && filters.minPrice !== null) params.minPrice = filters.minPrice
   if (filters.maxPrice !== undefined && filters.maxPrice !== null) params.maxPrice = filters.maxPrice
   if (filters.type) params.type = filters.type
+  if (filters.tag) params.tag = filters.tag
   return params
 }
 
@@ -271,6 +302,31 @@ async function fetchCategories() {
   } catch {
     categories.value = FALLBACK_CATEGORIES
   }
+}
+
+async function fetchAllTags() {
+  try {
+    const res = await getAllTags()
+    allTags.value = Array.isArray(res.data) ? res.data : []
+  } catch {
+    allTags.value = []
+  }
+}
+
+function filterByTag(tag, categoryId) {
+  if (activeTag.value === tag) {
+    activeTag.value = ''
+    filters.tag = ''
+    filters.categoryId = ''
+  } else {
+    activeTag.value = tag
+    filters.tag = tag
+    filters.categoryId = categoryId
+    // 清除关键词搜索，避免 LIKE 模糊匹配干扰标签的精确筛选
+    filters.keyword = ''
+  }
+  page.value = 1
+  fetchItems()
 }
 
 async function fetchRanking() {
@@ -287,6 +343,11 @@ async function fetchItems() {
   } finally {
     loading.value = false
   }
+}
+
+function applyPriceFilterNow() {
+  page.value = 1
+  fetchItems()
 }
 
 function handleSearch() {
@@ -310,7 +371,9 @@ function resetFilters() {
   filters.minPrice = undefined
   filters.maxPrice = undefined
   filters.type = ''
+  filters.tag = ''
   filters.sort = 'random'
+  activeTag.value = ''
   page.value = 1
   fetchItems()
 }
@@ -348,7 +411,7 @@ onMounted(async () => {
   if (route.query.keyword) {
     filters.keyword = String(route.query.keyword)
   }
-  await Promise.all([fetchCategories(), fetchItems(), fetchRanking()])
+  await Promise.all([fetchCategories(), fetchItems(), fetchRanking(), fetchAllTags()])
 })
 </script>
 
@@ -596,27 +659,58 @@ onMounted(async () => {
 
 .filter-panel {
   margin: 16px 0 22px;
-  padding: 16px 18px;
+  padding: 14px 18px;
   display: flex;
-  align-items: flex-end;
-  justify-content: space-between;
-  gap: 22px;
+  flex-direction: column;
+  gap: 0;
   border: var(--bw) solid var(--ink);
   border-radius: var(--r-m);
   background: var(--paper-deep);
   box-shadow: var(--shadow-s);
 }
 
+.filter-panel__bar {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  flex-wrap: wrap;
+}
+
 .filter-panel__title {
   display: flex;
   align-items: center;
-  gap: 11px;
+  gap: 10px;
   flex-shrink: 0;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  padding: 0;
+  text-align: left;
+  font-family: inherit;
+  color: inherit;
+  transition: opacity .15s;
+}
+
+.filter-panel__title:hover {
+  opacity: .8;
+}
+
+.filter-panel__title:focus-visible {
+  outline: 3px solid var(--blue);
+  outline-offset: 2px;
+  border-radius: var(--r-s);
+}
+
+.filter-panel__title strong {
+  font-family: var(--font-display);
+  font-size: 18px;
+  line-height: 1.2;
+  white-space: nowrap;
 }
 
 .filter-panel__stamp {
-  width: 40px;
-  height: 40px;
+  width: 36px;
+  height: 36px;
   display: grid;
   place-items: center;
   border: var(--bw) solid var(--ink);
@@ -624,36 +718,36 @@ onMounted(async () => {
   background: var(--yellow);
   box-shadow: 2px 2px 0 var(--ink);
   transform: rotate(-4deg);
-  font-size: 19px;
 }
 
-.filter-panel__stamp svg { width: 21px; height: 21px; }
+.filter-panel__stamp svg { width: 19px; height: 19px; }
 
-.filter-panel__title strong {
-  display: block;
-  font-family: var(--font-display);
-  font-size: 19px;
-  line-height: 1.2;
-}
-
-.filter-panel__title small {
-  display: block;
-  margin-top: 2px;
+.filter-panel__chevron {
+  width: 24px;
+  height: 24px;
+  display: grid;
+  place-items: center;
   color: var(--ink-soft);
-  font-size: 11px;
+  transition: transform .25s;
+}
+
+.filter-panel__chevron svg { width: 16px; height: 16px; }
+
+.filter-panel__chevron.open {
+  transform: rotate(180deg);
 }
 
 .advanced-row {
   display: flex;
   align-items: flex-end;
-  justify-content: flex-end;
   gap: 10px;
-  flex-wrap: wrap;
   flex: 1;
+  justify-content: flex-end;
+  flex-wrap: wrap;
 }
 
 .filter-field {
-  min-width: 132px;
+  min-width: 120px;
   margin: 0;
   padding: 0;
   border: 0;
@@ -670,14 +764,14 @@ onMounted(async () => {
 }
 
 .filter-field .select {
-  height: 40px;
+  height: 38px;
   padding-top: 7px;
   padding-bottom: 7px;
   font-size: 13px;
   box-shadow: none;
 }
 
-.price-field { min-width: 280px; }
+.price-field { min-width: 250px; }
 
 .price-range {
   height: 40px;
@@ -719,6 +813,116 @@ onMounted(async () => {
   height: 40px;
   padding: 7px 14px;
   box-shadow: 2px 2px 0 var(--ink);
+}
+
+/* —— 标签云（按大類分组，可折叠滚动）—— */
+.tag-cloud-wrap {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows .25s ease;
+}
+
+.tag-cloud-wrap.open {
+  grid-template-rows: 1fr;
+}
+
+.tag-cloud-wrap__inner {
+  overflow: hidden;
+}
+
+.tag-cloud {
+  width: 100%;
+  max-height: 280px;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--ink-soft) transparent;
+  margin-top: 14px;
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  background: var(--white);
+  border: var(--bw) solid var(--ink);
+  border-radius: var(--r-s);
+  box-shadow: inset 0 1px 4px rgba(0,0,0,.04);
+}
+
+.tag-cloud::-webkit-scrollbar { width: 6px; }
+.tag-cloud::-webkit-scrollbar-thumb { background: var(--ink-soft); border-radius: 3px; }
+
+.tag-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.tag-group__label {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--ink-soft);
+  text-transform: uppercase;
+  letter-spacing: .5px;
+  padding-bottom: 2px;
+  border-bottom: 1px solid #E5DCC9;
+}
+
+.tag-group__chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.tag-cloud__chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 14px;
+  font-size: 13px;
+  font-weight: 700;
+  background: var(--white);
+  border: 1.5px dashed var(--ink-soft);
+  border-radius: 999px;
+  cursor: pointer;
+  transition: all .18s;
+  color: var(--ink-soft);
+  font-family: var(--font-body);
+}
+
+.tag-cloud__chip:hover {
+  border-style: solid;
+  border-color: var(--ink);
+  background: var(--yellow);
+  color: var(--ink);
+  transform: translate(-1px, -1px);
+  box-shadow: 2px 2px 0 var(--ink);
+}
+
+.tag-cloud__chip.active {
+  border-style: solid;
+  border-color: var(--ink);
+  background: var(--ink);
+  color: var(--paper);
+  box-shadow: var(--shadow-s);
+}
+
+.tag-cloud__count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 9px;
+  background: var(--paper-deep);
+  color: var(--ink-soft);
+  font-size: 10.5px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.tag-cloud__chip.active .tag-cloud__count {
+  background: var(--primary);
+  color: #fff;
 }
 
 .hall {
@@ -1057,12 +1261,14 @@ onMounted(async () => {
     position: static;
   }
 
-  .filter-panel {
-    align-items: stretch;
-    flex-direction: column;
+  .filter-panel__bar {
+    gap: 12px;
   }
 
-  .advanced-row { justify-content: flex-start; }
+  .advanced-row {
+    justify-content: flex-start;
+    flex: 1 1 100%;
+  }
 }
 
 @media (max-width: 900px) {
@@ -1087,8 +1293,9 @@ onMounted(async () => {
   .searchbar input { padding-right: 2px; font-size: 14px; }
   .searchbar > button[type="submit"] { padding: 0 16px; font-size: 14px; }
   .searchbar > button[type="submit"] .ui-icon { display: none; }
-  .filter-panel { padding: 14px; }
-  .advanced-row { display: grid; grid-template-columns: 1fr auto; }
+  .filter-panel { padding: 12px 14px; }
+  .filter-panel__bar { gap: 8px; }
+  .advanced-row { display: grid; grid-template-columns: 1fr auto; width: 100%; }
   .filter-field { min-width: 0; }
   .price-field { min-width: 0; grid-column: 1 / -1; grid-row: 2; }
   .price-range input { width: 100%; }
