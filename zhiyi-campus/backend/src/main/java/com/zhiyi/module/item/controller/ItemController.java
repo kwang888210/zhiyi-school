@@ -5,6 +5,7 @@ import com.zhiyi.common.Result;
 import com.zhiyi.module.item.dto.PublishItemDTO;
 import com.zhiyi.module.item.service.ItemPublishService;
 import com.zhiyi.module.item.service.MarketplaceService;
+import com.zhiyi.module.item.vo.AiTagTrendVO;
 import com.zhiyi.module.item.vo.FavoriteToggleVO;
 import com.zhiyi.module.item.vo.ItemCardVO;
 import com.zhiyi.module.item.vo.UploadImageVO;
@@ -102,6 +103,11 @@ public class ItemController {
     public Result<List<ItemCardVO>> ranking(@RequestParam(defaultValue = "10") int limit,
                                             HttpServletRequest request) {
         return Result.ok(marketplaceService.ranking(limit, optionalCurrentUser(request)));
+    }
+
+    @GetMapping("/ranking/tags")
+    public Result<List<AiTagTrendVO>> trendingAiTags(@RequestParam(defaultValue = "10") int limit) {
+        return Result.ok(marketplaceService.trendingAiTags(limit));
     }
 
     @GetMapping("/{id}")

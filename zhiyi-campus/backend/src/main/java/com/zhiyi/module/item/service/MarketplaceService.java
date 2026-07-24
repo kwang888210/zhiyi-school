@@ -13,6 +13,7 @@ import com.zhiyi.module.item.entity.Category;
 import com.zhiyi.module.item.entity.Item;
 import com.zhiyi.module.item.mapper.CategoryMapper;
 import com.zhiyi.module.item.mapper.ItemMapper;
+import com.zhiyi.module.item.vo.AiTagTrendVO;
 import com.zhiyi.module.item.vo.FavoriteToggleVO;
 import com.zhiyi.module.item.vo.ItemCardVO;
 import com.zhiyi.module.social.entity.ItemFavorite;
@@ -301,6 +302,31 @@ public class MarketplaceService {
             card.setFavoriteCount(counts.getOrDefault(card.getId(), 0L));
         }
         return cards;
+    }
+
+    public List<AiTagTrendVO> trendingAiTags(int limit) {
+        int safeLimit = Math.max(1, Math.min(limit, 10));
+        List<Object> rawTagValues = itemMapper.selectObjs(new QueryWrapper<Item>()
+                .select("ai_tags")
+                .eq("status", "ON_SALE")
+                .isNotNull("ai_tags"));
+
+        Map<String, Long> frequencies = new HashMap<>();
+        for (Object rawTagValue : rawTagValues) {
+            Set<String> itemTags = parseJsonArray(String.valueOf(rawTagValue)).stream()
+                    .map(String::trim)
+                    .filter(StringUtils::hasText)
+                    .filter(tag -> tag.length() <= 20)
+                    .collect(Collectors.toSet());
+            itemTags.forEach(tag -> frequencies.merge(tag, 1L, Long::sum));
+        }
+
+        return frequencies.entrySet().stream()
+                .sorted(Map.Entry.<String, Long>comparingByValue().reversed()
+                        .thenComparing(Map.Entry::getKey, String.CASE_INSENSITIVE_ORDER))
+                .limit(safeLimit)
+                .map(entry -> new AiTagTrendVO(entry.getKey(), entry.getValue()))
+                .toList();
     }
 
     private LambdaQueryWrapper<Item> buildOnSaleWrapper(String keyword,

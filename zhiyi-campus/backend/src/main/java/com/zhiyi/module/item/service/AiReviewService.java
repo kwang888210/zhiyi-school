@@ -46,7 +46,7 @@ public class AiReviewService {
     private static final BigDecimal NEW_DIGITAL_FLOOR = new BigDecimal("10.00");
     // 本地违规关键词：不依赖 AI API 即可拦截明显的违规内容
     private static final Pattern VIOLATION_KEYWORDS = Pattern.compile(
-            "(?i)(代写|代考|代课|替考|作弊|办假证|办证|刻章|发票代开|刷单|"
+            "(?i)(代写|代考|代课|代签到|代理课|替考|作弊|办假证|办证|刻章|发票代开|刷单|"
                     + "套现|网贷|裸聊|招嫖|约炮|赌博|博彩|毒品|迷药|枪支|弹药|"
                     + "假钞|假币|色情|淫秽|盗版|侵权|翻墙|VPN|梯子|黑客|"
                     + "代发论文|代写论文|代做毕设|代做毕业|"

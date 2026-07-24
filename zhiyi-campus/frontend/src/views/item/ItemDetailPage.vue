@@ -119,9 +119,9 @@
                 </button>
               </template>
             </div>
-            <p class=”muted escrow-note”>
-              <template v-if=”item.type === 'BUY'”>点击”我要出售”与发布者联系，双方沟通后确认交易细节</template>
-              <template v-else>点击”立即购买”后货款将由平台托管，当面验货满意再确认收货</template>
+            <p class="muted escrow-note">
+              <template v-if="item.type === 'BUY'">点击「我要出售」与发布者联系，双方沟通后确认交易细节</template>
+              <template v-else>点击「立即购买」后货款将由平台托管，当面验货满意再确认收货</template>
             </p>
           </div>
         </section>

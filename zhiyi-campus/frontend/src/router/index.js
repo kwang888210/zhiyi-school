@@ -45,6 +45,14 @@ const routes = [
     meta: { title: '发布商品', requireAuth: true },
   },
 
+  // ── 排行榜（模块三）──
+  {
+    path: '/ranking',
+    name: 'Ranking',
+    component: () => import('@/views/ranking/RankingPage.vue'),
+    meta: { title: '近期爆款榜 - 智易校园' },
+  },
+
   // ── 用户中心（模块一）──
   {
     path: '/user/profile',
@@ -128,6 +136,12 @@ const routes = [
     name: 'AdminManage',
     component: () => import('@/views/admin/ManagePage.vue'),
     meta: { title: '内容管理', requireAuth: true, requireAdmin: true },
+  },
+  {
+    path: '/admin/categories',
+    name: 'AdminCategories',
+    component: () => import('@/views/admin/CategoriesPage.vue'),
+    meta: { title: '分类管理', requireAuth: true, requireAdmin: true },
   },
 
   // ── 兜底：404 ──

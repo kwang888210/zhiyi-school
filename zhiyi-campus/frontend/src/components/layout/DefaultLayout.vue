@@ -10,6 +10,7 @@
 
         <nav class="nav-links" aria-label="主导航">
           <router-link to="/" :class="{ active: isActive('/') }">交易大厅</router-link>
+          <router-link to="/ranking" :class="{ active: isActive('/ranking') }">爆款榜</router-link>
           <template v-if="loggedIn">
             <router-link to="/publish" :class="{ active: isActive('/publish') }">发布闲置</router-link>
             <router-link to="/chat" :class="{ active: isActive('/chat') }">
