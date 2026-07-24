@@ -118,8 +118,23 @@
                 <p v-if="regForm.confirmPassword && regForm.confirmPassword !== regForm.password" class="error-msg">两次输入不一致</p>
               </div>
             </div>
-            <p class="hint reg-hint">昵称默认「同学_学号后4位」；密码强度：{{ regForm.password ? strengthText : '—' }}，建议混合字母与数字</p>
-            <button class="btn btn--primary btn--lg btn--block" type="submit">下一步</button>
+            <div class="field">
+              <label for="r-school">所属学校 <span class="req">*</span></label>
+              <select id="r-school" v-model="regForm.schoolId" class="input select" :disabled="schoolsLoading">
+                <option :value="null" disabled>{{ schoolsLoading ? '学校列表加载中…' : '请选择你就读的学校' }}</option>
+                <option v-for="s in schools" :key="s.id" :value="s.id">{{ s.name }}</option>
+              </select>
+              <div v-if="schoolsError" class="school-load-error" role="alert">
+                <span>学校列表加载失败</span>
+                <button class="school-retry" type="button" :disabled="schoolsLoading" @click="fetchSchools">重新加载</button>
+              </div>
+            </div>
+            <div class="field">
+              <label for="r-email">学校邮箱 <span class="opt">选填</span></label>
+              <input id="r-email" v-model.trim="regForm.schoolEmail" class="input" type="email"
+                     :placeholder="emailPlaceholder" autocomplete="email" />
+            </div>
+            <button class="btn btn--primary btn--lg btn--block" type="submit" :disabled="schoolsLoading">下一步</button>
           </form>
 
           <!-- 步骤2：密保问题（自由输入 + 随机填入）/ 密保答案 / 手机号 -->
@@ -225,7 +240,7 @@
 import { ref, reactive, computed, onMounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { ElMessage } from 'element-plus'
-import { login, register, getSecurityQuestion, getSecurityQuestions, resetPassword } from '@/api/auth'
+import { login, register, getSecurityQuestion, getSecurityQuestions, resetPassword, getSchools } from '@/api/auth'
 import { useUserStore } from '@/stores/user'
 
 /**
@@ -271,8 +286,49 @@ const questions = ref([])
 const regStep = ref(1)
 const regForm = reactive({
   studentId: '', password: '', confirmPassword: '', nickname: '',
+  schoolId: null, schoolEmail: '',
   securityQuestion: '', securityAnswer: '', phone: '',
 })
+
+// —— 学校下拉 + 学校邮箱后缀校验（A2/A3）——
+const schools = ref([])
+const schoolsLoading = ref(false)
+const schoolsError = ref(false)
+
+const selectedSchool = computed(() =>
+  schools.value.find((s) => s.id === regForm.schoolId) || null
+)
+const emailPlaceholder = computed(() =>
+  selectedSchool.value?.emailDomain
+    ? `学号${selectedSchool.value.emailDomain}`
+    : '先选择学校，再填写学校邮箱'
+)
+
+function schoolEmailIsValid() {
+  const email = regForm.schoolEmail.trim().toLowerCase()
+  if (!email) return true
+  if (!/^[^@\s]+@[^@\s]+$/.test(email)) return false
+  const domain = selectedSchool.value?.emailDomain?.trim().toLowerCase()
+  return !domain || email.endsWith(domain)
+}
+
+async function fetchSchools() {
+  schoolsLoading.value = true
+  schoolsError.value = false
+  try {
+    const res = await getSchools()
+    schools.value = res.data || []
+    if (!schools.value.some((school) => school.id === regForm.schoolId)) {
+      regForm.schoolId = null
+    }
+  } catch {
+    schools.value = []
+    regForm.schoolId = null
+    schoolsError.value = true
+  } finally {
+    schoolsLoading.value = false
+  }
+}
 
 /** 随机填入一个预设密保问题；相邻两次不重复（用户仍可自行修改） */
 let lastRandomIndex = -1
@@ -315,6 +371,14 @@ function regStepClass(n) {
 
 /** 步骤1 → 步骤2：先校验账号信息 */
 function handleRegNext() {
+  if (schoolsLoading.value) {
+    ElMessage.warning('学校列表仍在加载，请稍候')
+    return
+  }
+  if (schoolsError.value) {
+    ElMessage.warning('请先重新加载学校列表')
+    return
+  }
   if (!regForm.studentId || !regForm.password) {
     ElMessage.warning('请填写学号和密码')
     return
@@ -325,6 +389,15 @@ function handleRegNext() {
   }
   if (regForm.password !== regForm.confirmPassword) {
     ElMessage.warning('两次输入的密码不一致')
+    return
+  }
+  if (!regForm.schoolId) {
+    ElMessage.warning('请选择所属学校')
+    return
+  }
+  if (!schoolEmailIsValid()) {
+    const domain = selectedSchool.value?.emailDomain
+    ElMessage.warning(domain ? `学校邮箱须使用 ${domain} 后缀` : '学校邮箱格式不正确')
     return
   }
   regStep.value = 2
@@ -346,6 +419,8 @@ async function handleRegister() {
       password: regForm.password,
       confirmPassword: regForm.confirmPassword,
       nickname: regForm.nickname,
+      schoolId: regForm.schoolId,
+      schoolEmail: regForm.schoolEmail || null,
       securityQuestion: regForm.securityQuestion,
       securityAnswer: regForm.securityAnswer,
       phone: regForm.phone,
@@ -429,6 +504,7 @@ onMounted(async () => {
     // 兜底：接口异常时用前端预设，保证「随机」按钮可用
     questions.value = ['你的小学名称是？', '你最喜欢的老师姓什么？', '你的出生地是哪个城市？', '你第一只宠物叫什么？']
   }
+  await fetchSchools()
 })
 </script>
 
@@ -579,6 +655,30 @@ onMounted(async () => {
 }
 .field-row .field { margin-bottom: 14px; }
 .reg-hint { margin: 0 0 16px; }
+
+/* 学校邮箱：可选标记 */
+.field label .opt { color: var(--ink-soft); font-weight: 600; font-size: 12px; margin-left: 6px; }
+.school-load-error {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 6px;
+  color: var(--red);
+  font-size: 12.5px;
+}
+.school-retry {
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: var(--blue);
+  font: inherit;
+  font-weight: 700;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+.school-retry:disabled { cursor: wait; opacity: .55; }
 @media (max-width: 480px) {
   .field-row { grid-template-columns: 1fr; gap: 0; }
 }

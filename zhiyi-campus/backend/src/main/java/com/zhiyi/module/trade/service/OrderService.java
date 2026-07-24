@@ -10,8 +10,10 @@ import com.zhiyi.module.item.entity.Item;
 import com.zhiyi.module.item.mapper.ItemMapper;
 import com.zhiyi.module.trade.dto.CreateOrderDTO;
 import com.zhiyi.module.trade.entity.TradeOrder;
+import com.zhiyi.module.trade.entity.TradeReview;
 import com.zhiyi.module.trade.entity.WalletLog;
 import com.zhiyi.module.trade.mapper.TradeOrderMapper;
+import com.zhiyi.module.trade.mapper.TradeReviewMapper;
 import com.zhiyi.module.trade.mapper.WalletLogMapper;
 import com.zhiyi.module.trade.vo.OrderVO;
 import com.zhiyi.module.user.entity.SysUser;
@@ -45,6 +47,7 @@ public class OrderService {
     private final SysUserMapper sysUserMapper;
     private final ItemMapper itemMapper;
     private final TradeOrderMapper orderMapper;
+    private final TradeReviewMapper reviewMapper;
     private final WalletLogMapper walletLogMapper;
     private final UserGrowthService growthService;
 
@@ -167,14 +170,18 @@ public class OrderService {
         }
 
         // 2. 原子更新订单状态 —— 只有 WAITING_MEET → COMPLETED 才生效
+        LocalDateTime completedAt = LocalDateTime.now();
         LambdaUpdateWrapper<TradeOrder> completeWrapper = new LambdaUpdateWrapper<>();
         completeWrapper.set(TradeOrder::getStatus, "COMPLETED")
-                       .set(TradeOrder::getCompletedAt, LocalDateTime.now())
+                       .set(TradeOrder::getCompletedAt, completedAt)
                        .eq(TradeOrder::getId, orderId)
                        .eq(TradeOrder::getStatus, "WAITING_MEET");
         if (orderMapper.update(null, completeWrapper) == 0) {
             throw new BusinessException(ResultCode.ORDER_STATUS_ERROR);
         }
+        // 数据库使用原子 UPDATE，返回对象也同步成新状态，避免 API 响应仍显示 WAITING_MEET。
+        order.setStatus("COMPLETED");
+        order.setCompletedAt(completedAt);
 
         BigDecimal price = order.getPrice();
 
@@ -238,14 +245,17 @@ public class OrderService {
         BigDecimal price = order.getPrice();
 
         // 2. 原子更新订单状态 —— 只有 WAITING_MEET → CANCELLED 才生效
+        LocalDateTime cancelledAt = LocalDateTime.now();
         LambdaUpdateWrapper<TradeOrder> cancelWrapper = new LambdaUpdateWrapper<>();
         cancelWrapper.set(TradeOrder::getStatus, "CANCELLED")
-                     .set(TradeOrder::getCancelledAt, LocalDateTime.now())
+                     .set(TradeOrder::getCancelledAt, cancelledAt)
                      .eq(TradeOrder::getId, orderId)
                      .eq(TradeOrder::getStatus, "WAITING_MEET");
         if (orderMapper.update(null, cancelWrapper) == 0) {
             throw new BusinessException(ResultCode.ORDER_STATUS_ERROR);
         }
+        order.setStatus("CANCELLED");
+        order.setCancelledAt(cancelledAt);
 
         // 3. 买家退款（原子加余额）
         LambdaUpdateWrapper<SysUser> refund = new LambdaUpdateWrapper<>();
@@ -298,7 +308,14 @@ public class OrderService {
         return result.convert(order -> {
             Item item = itemMapper.selectById(order.getItemId());
             SysUser seller = sysUserMapper.selectById(order.getSellerId());
-            return toVO(order, item, seller != null ? seller.getNickname() : null, null);
+            OrderVO vo = toVO(order, item, seller != null ? seller.getNickname() : null, null);
+            // 仅已完成订单需要评价入口：查一次是否已评，供前端控制按钮显隐
+            if ("COMPLETED".equals(order.getStatus())) {
+                Long reviewed = reviewMapper.selectCount(new LambdaQueryWrapper<TradeReview>()
+                        .eq(TradeReview::getOrderId, order.getId()));
+                vo.setReviewed(reviewed != null && reviewed > 0);
+            }
+            return vo;
         });
     }
 

@@ -67,15 +67,24 @@ public class MarketplaceService {
      * 返回结构：[{categoryId, categoryName, tags: [{name, count}]}]
      */
     public List<Map<String, Object>> getAllTags() {
+        return getAllTags(null);
+    }
+
+    public List<Map<String, Object>> getAllTags(Long currentUserId) {
+        Long schoolId = marketplaceSchoolId(currentUserId);
         // 加载大类名称映射
         Map<Long, String> catNames = categoryMapper.selectList(
                 new LambdaQueryWrapper<Category>().select(Category::getId, Category::getName))
                 .stream().collect(Collectors.toMap(Category::getId, Category::getName));
 
         // 查出所有在售商品（只需 category_id + ai_tags）
-        List<Item> items = itemMapper.selectList(new LambdaQueryWrapper<Item>()
+        LambdaQueryWrapper<Item> itemWrapper = new LambdaQueryWrapper<Item>()
                 .eq(Item::getStatus, "ON_SALE")
-                .select(Item::getCategoryId, Item::getAiTags));
+                .select(Item::getCategoryId, Item::getAiTags);
+        if (schoolId != null) {
+            itemWrapper.eq(Item::getSchoolId, schoolId);
+        }
+        List<Item> items = itemMapper.selectList(itemWrapper);
 
         // categoryId → tag → count
         Map<Long, Map<String, Long>> grouped = new LinkedHashMap<>();
@@ -124,9 +133,10 @@ public class MarketplaceService {
                                             int page,
                                             int size,
                                             Long currentUserId) {
+        Long schoolId = marketplaceSchoolId(currentUserId);
         Page<Item> itemPage = itemMapper.selectPage(
                 new Page<>(Math.max(page, 1), normalizeSize(size)),
-                buildOnSaleWrapper(keyword, categoryId, minPrice, maxPrice, sort, type, tag)
+                buildOnSaleWrapper(keyword, categoryId, minPrice, maxPrice, sort, type, tag, schoolId)
         );
 
         Page<ItemCardVO> result = new Page<>(itemPage.getCurrent(), itemPage.getSize(), itemPage.getTotal());
@@ -253,11 +263,26 @@ public class MarketplaceService {
 
     public List<ItemCardVO> ranking(int limit, Long currentUserId) {
         int safeLimit = Math.max(1, Math.min(limit, 20));
-        List<Map<String, Object>> rows = favoriteMapper.selectMaps(new QueryWrapper<ItemFavorite>()
+        Long schoolId = marketplaceSchoolId(currentUserId);
+        QueryWrapper<ItemFavorite> rankingWrapper = new QueryWrapper<ItemFavorite>()
                 .select("item_id", "COUNT(*) AS favorite_count")
                 .groupBy("item_id")
-                .orderByDesc("favorite_count")
-                .last("LIMIT " + safeLimit * 3));
+                .orderByDesc("favorite_count");
+        if (schoolId != null) {
+            List<Long> visibleItemIds = itemMapper.selectList(new LambdaQueryWrapper<Item>()
+                            .eq(Item::getStatus, "ON_SALE")
+                            .eq(Item::getSchoolId, schoolId)
+                            .select(Item::getId))
+                    .stream()
+                    .map(Item::getId)
+                    .toList();
+            if (visibleItemIds.isEmpty()) {
+                return List.of();
+            }
+            rankingWrapper.in("item_id", visibleItemIds);
+        }
+        rankingWrapper.last("LIMIT " + safeLimit * 3);
+        List<Map<String, Object>> rows = favoriteMapper.selectMaps(rankingWrapper);
 
         Map<Long, Long> counts = new LinkedHashMap<>();
         for (Map<String, Object> row : rows) {
@@ -269,6 +294,7 @@ public class MarketplaceService {
                 ? Map.of()
                 : itemMapper.selectBatchIds(rankedIds).stream()
                 .filter(item -> "ON_SALE".equals(item.getStatus()))
+                .filter(item -> schoolId == null || Objects.equals(item.getSchoolId(), schoolId))
                 .collect(Collectors.toMap(Item::getId, Function.identity()));
 
         List<Item> items = rankedIds.stream()
@@ -282,6 +308,9 @@ public class MarketplaceService {
                     .eq(Item::getStatus, "ON_SALE")
                     .orderByDesc(Item::getCreatedAt)
                     .last("LIMIT " + (safeLimit - items.size()));
+            if (schoolId != null) {
+                fillerWrapper.eq(Item::getSchoolId, schoolId);
+            }
             if (!rankedIds.isEmpty()) {
                 fillerWrapper.notIn(Item::getId, rankedIds);
             }
@@ -296,11 +325,20 @@ public class MarketplaceService {
     }
 
     public List<AiTagTrendVO> trendingAiTags(int limit) {
+        return trendingAiTags(limit, null);
+    }
+
+    public List<AiTagTrendVO> trendingAiTags(int limit, Long currentUserId) {
         int safeLimit = Math.max(1, Math.min(limit, 10));
-        List<Object> rawTagValues = itemMapper.selectObjs(new QueryWrapper<Item>()
+        Long schoolId = marketplaceSchoolId(currentUserId);
+        QueryWrapper<Item> tagWrapper = new QueryWrapper<Item>()
                 .select("ai_tags")
                 .eq("status", "ON_SALE")
-                .isNotNull("ai_tags"));
+                .isNotNull("ai_tags");
+        if (schoolId != null) {
+            tagWrapper.eq("school_id", schoolId);
+        }
+        List<Object> rawTagValues = itemMapper.selectObjs(tagWrapper);
 
         Map<String, Long> frequencies = new HashMap<>();
         for (Object rawTagValue : rawTagValues) {
@@ -326,9 +364,13 @@ public class MarketplaceService {
                                                        BigDecimal maxPrice,
                                                        String sort,
                                                        String type,
-                                                       String tag) {
+                                                       String tag,
+                                                       Long schoolId) {
         LambdaQueryWrapper<Item> wrapper = new LambdaQueryWrapper<Item>()
                 .eq(Item::getStatus, "ON_SALE");
+        if (schoolId != null) {
+            wrapper.eq(Item::getSchoolId, schoolId);
+        }
         if (StringUtils.hasText(keyword)) {
             String kw = keyword.trim();
             wrapper.and(w -> w.like(Item::getTitle, kw)
@@ -355,6 +397,27 @@ public class MarketplaceService {
         }
         applySort(wrapper, sort);
         return wrapper;
+    }
+
+    /**
+     * 普通登录用户只看到所属学校的数据；管理员和未登录访客沿用原有全局视图。
+     * 注册流程保证普通用户必有 schoolId，这里仍对异常数据做显式失败，避免静默越权。
+     */
+    private Long marketplaceSchoolId(Long currentUserId) {
+        if (currentUserId == null) {
+            return null;
+        }
+        SysUser currentUser = userMapper.selectById(currentUserId);
+        if (currentUser == null) {
+            throw new BusinessException(ResultCode.USER_NOT_FOUND);
+        }
+        if ("ADMIN".equals(currentUser.getRole())) {
+            return null;
+        }
+        if (currentUser.getSchoolId() == null) {
+            throw new BusinessException(ResultCode.BAD_REQUEST, "请先设置所属学校");
+        }
+        return currentUser.getSchoolId();
     }
 
     private void applySort(LambdaQueryWrapper<Item> wrapper, String sort) {

@@ -15,6 +15,13 @@ public class SysUser {
     private String password;
     private String nickname;
     private String phone;
+    // ---- 模块一创新功能：学校归属 + 学校邮箱 ----
+    private Long schoolId;          // 所属学校（注册必填，个人资料可修改）
+    private String schoolEmail;     // 学校邮箱（可选）
+    // ---- 模块一创新功能：信任标签（自愿补全）----
+    private String college;         // 学院
+    private String grade;           // 年级
+    private String dormitory;       // 宿舍楼
     private String role;            // USER / ADMIN
     private String status;          // ACTIVE / BANNED_TEMP / BANNED_PERM / CANCELLED（已注销）
     private LocalDateTime banUntilTime;

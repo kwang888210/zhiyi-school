@@ -2,6 +2,11 @@ import request from '@/utils/request'
 
 /** 模块一：认证与用户（负责人 A） */
 
+// —— 学校（创新功能 A9，公开）——
+export function getSchools() {
+  return request.get('/school/list')
+}
+
 // —— 认证 ——
 export function register(data) {
   return request.post('/auth/register', data)
@@ -38,6 +43,21 @@ export function getExpLog(params) {
 
 export function getUserCard(userId) {
   return request.get(`/user/${userId}/card`)
+}
+
+/** 登录后查看商品发布者的联系与校园资料 */
+export function getSellerDetail(userId) {
+  return request.get(`/user/${userId}/seller-detail`)
+}
+
+// 伪熟人信任标签（A5）：登录用户视角看目标用户 → ["同学院","同级","同楼"]
+export function getUserRelation(userId) {
+  return request.get(`/user/${userId}/relation`)
+}
+
+// 信誉雷达五维分值（A6，公开）
+export function getUserReputation(userId) {
+  return request.get(`/user/${userId}/reputation`)
 }
 
 // —— 账号安全 ——

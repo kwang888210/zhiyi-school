@@ -90,9 +90,19 @@
               </button>
             </template>
 
-            <div v-else-if="o.status === 'COMPLETED'" class="order-extra muted">
-              {{ fmtTime(o.completedAt) }} 完成
-            </div>
+            <template v-else-if="o.status === 'COMPLETED'">
+              <button
+                v-if="o.reviewed === false"
+                class="btn btn--yellow btn--sm"
+                @click="openReview(o)"
+              >
+                ⭐ 评价卖家
+              </button>
+              <span v-else-if="o.reviewed" class="muted order-extra">已评价</span>
+              <div class="order-extra muted">
+                {{ fmtTime(o.completedAt) }} 完成
+              </div>
+            </template>
             <div v-else-if="o.status === 'CANCELLED'" class="order-extra muted">
               {{ fmtTime(o.cancelledAt) }} 取消
             </div>
@@ -111,6 +121,37 @@
           @current-change="fetchOrders"
         />
       </div>
+
+      <!-- 评价弹窗（A7）-->
+      <el-dialog v-model="reviewVisible" title="评价卖家" width="400px">
+        <div class="review-stars">
+          <span>评分：</span>
+          <button
+            v-for="n in 5" :key="n"
+            class="star-btn"
+            :class="{ active: reviewForm.rating >= n }"
+            type="button"
+            @click="reviewForm.rating = n"
+          >★</button>
+          <span class="muted">{{ reviewForm.rating }} 星</span>
+        </div>
+        <div class="review-accurate">
+          <label>
+            <input type="checkbox" v-model="reviewForm.accurate" />
+            描述与实物相符
+          </label>
+        </div>
+        <div class="field" style="margin-top:14px">
+          <label>评价内容（选填）</label>
+          <textarea v-model="reviewForm.comment" class="input textarea" maxlength="200" rows="3" placeholder="说说你的交易体验…" />
+        </div>
+        <template #footer>
+          <button class="btn btn--sm" @click="reviewVisible = false">取消</button>
+          <button class="btn btn--primary btn--sm" :disabled="submittingReview" @click="handleSubmitReview">
+            {{ submittingReview ? '提交中…' : '提交评价' }}
+          </button>
+        </template>
+      </el-dialog>
     </div>
   </DefaultLayout>
 </template>
@@ -119,7 +160,33 @@
 import { ref, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import DefaultLayout from '@/components/layout/DefaultLayout.vue'
-import { getBoughtOrders, confirmReceipt, cancelOrder } from '@/api/order'
+import { getBoughtOrders, confirmReceipt, cancelOrder, reviewOrder } from '@/api/order'
+
+// ---- 评价弹窗（A7）----
+const reviewVisible = ref(false)
+const reviewingOrder = ref(null)
+const reviewForm = ref({ rating: 5, accurate: true, comment: '' })
+const submittingReview = ref(false)
+
+function openReview(order) {
+  reviewingOrder.value = order
+  reviewForm.value = { rating: 5, accurate: true, comment: '' }
+  reviewVisible.value = true
+}
+
+async function handleSubmitReview() {
+  submittingReview.value = true
+  try {
+    await reviewOrder(reviewingOrder.value.id, { ...reviewForm.value })
+    ElMessage.success('评价成功！')
+    reviewVisible.value = false
+    fetchOrders()
+  } catch (e) {
+    // 提示由 request.js 处理
+  } finally {
+    submittingReview.value = false
+  }
+}
 
 // ---- 筛选 ----
 const filters = [
@@ -432,4 +499,12 @@ onMounted(() => {
     align-items: center;
   }
 }
+
+/* 评价弹窗 */
+.review-stars { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; font-size: 15px; }
+.star-btn { background: none; border: none; font-size: 24px; cursor: pointer; color: #D8CDB6; transition: color .15s; }
+.star-btn.active { color: var(--yellow); }
+.review-accurate { font-size: 14px; display: flex; align-items: center; gap: 8px; }
+.review-accurate input { width: 16px; height: 16px; cursor: pointer; }
+.textarea { resize: vertical; min-height: 80px; }
 </style>

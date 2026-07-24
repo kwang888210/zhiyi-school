@@ -15,6 +15,8 @@ import com.zhiyi.module.item.mapper.CategoryMapper;
 import com.zhiyi.module.item.mapper.ItemMapper;
 import com.zhiyi.module.item.vo.ItemCardVO;
 import com.zhiyi.module.item.vo.UploadImageVO;
+import com.zhiyi.module.user.entity.SysUser;
+import com.zhiyi.module.user.mapper.SysUserMapper;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
@@ -54,6 +56,7 @@ public class ItemPublishService {
     private final CategoryMapper categoryMapper;
     private final ViolationReportMapper violationReportMapper;
     private final MarketplaceService marketplaceService;
+    private final SysUserMapper userMapper;
     private final ObjectMapper objectMapper;
     private final PlatformTransactionManager transactionManager;
     private final AiReviewService aiReviewService;
@@ -87,6 +90,13 @@ public class ItemPublishService {
 
     @Transactional
     public ItemCardVO publish(Long publisherId, PublishItemDTO dto) {
+        SysUser publisher = userMapper.selectById(publisherId);
+        if (publisher == null) {
+            throw new BusinessException(ResultCode.USER_NOT_FOUND);
+        }
+        if (publisher.getSchoolId() == null) {
+            throw new BusinessException(ResultCode.BAD_REQUEST, "请先设置所属学校");
+        }
         Category category = categoryMapper.selectById(dto.getCategoryId());
         if (category == null) {
             throw new BusinessException(ResultCode.NOT_FOUND, "商品分类不存在");
@@ -100,7 +110,7 @@ public class ItemPublishService {
             TransactionTemplate newTx = new TransactionTemplate(transactionManager);
             newTx.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
             Long savedItemId = newTx.execute(status -> {
-                Item item = buildItem(publisherId, dto, review);
+                Item item = buildItem(publisherId, publisher.getSchoolId(), dto, review);
                 item.setStatus("OFF_SHELF");
                 item.setAiReviewed(true);
                 itemMapper.insert(item);
@@ -111,7 +121,7 @@ public class ItemPublishService {
         }
 
         // 合规商品正常发布
-        Item item = buildItem(publisherId, dto, review);
+        Item item = buildItem(publisherId, publisher.getSchoolId(), dto, review);
         item.setStatus("ON_SALE");
         item.setAiReviewed(!review.reviewError());
         itemMapper.insert(item);
@@ -219,9 +229,10 @@ public class ItemPublishService {
         }
     }
 
-    private Item buildItem(Long publisherId, PublishItemDTO dto, ReviewResult review) {
+    private Item buildItem(Long publisherId, Long schoolId, PublishItemDTO dto, ReviewResult review) {
         Item item = new Item();
         item.setPublisherId(publisherId);
+        item.setSchoolId(schoolId);
         item.setType(dto.getType());
         item.setTitle(dto.getTitle().trim());
         item.setDescription(dto.getDescription().trim());

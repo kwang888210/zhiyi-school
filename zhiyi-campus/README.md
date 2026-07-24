@@ -14,19 +14,19 @@
 
 ### 1. 数据库
 ```bash
-mysql -u root -p < zhiyi_campus_init.sql
+mysql --default-character-set=utf8mb4 -u root -p < zhiyi_campus_init.sql
 ```
 
 ### 2. 后端
 ```bash
-cd backend
+cd zhiyi-campus/backend
 mvn spring-boot:run
 # → http://localhost:8080
 ```
 
 ### 3. 前端
 ```bash
-cd frontend
+cd zhiyi-campus/frontend
 npm install
 npm run dev
 # → http://localhost:3000

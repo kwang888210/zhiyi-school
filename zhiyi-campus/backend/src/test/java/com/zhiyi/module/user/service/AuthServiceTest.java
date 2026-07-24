@@ -9,6 +9,7 @@ import com.zhiyi.common.ResultCode;
 import com.zhiyi.module.user.dto.LoginDTO;
 import com.zhiyi.module.user.dto.RegisterDTO;
 import com.zhiyi.module.user.dto.ResetPasswordDTO;
+import com.zhiyi.module.user.entity.School;
 import com.zhiyi.module.user.entity.SysUser;
 import com.zhiyi.module.user.mapper.SysUserMapper;
 import com.zhiyi.module.user.support.LoginAttemptService;
@@ -46,9 +47,12 @@ class AuthServiceTest {
     private SysUserMapper userMapper;
     @Mock
     private PasswordEncoder passwordEncoder;
+    @Mock
+    private com.zhiyi.module.user.mapper.SchoolMapper schoolMapper;
 
     private LoginAttemptService loginAttemptService;
     private RecordingUserStateCache userStateCache;
+    private SchoolService schoolService;
     private JwtUtils jwtUtils;
     private AuthService service;
 
@@ -64,6 +68,7 @@ class AuthServiceTest {
     void setUp() {
         loginAttemptService = new LoginAttemptService(1, 300);
         userStateCache = new RecordingUserStateCache(userMapper);
+        schoolService = new SchoolService(schoolMapper);
         jwtUtils = new JwtUtils(
                 "01234567890123456789012345678901", 60_000);
         service = new AuthService(
@@ -71,7 +76,19 @@ class AuthServiceTest {
                 passwordEncoder,
                 jwtUtils,
                 loginAttemptService,
-                userStateCache);
+                userStateCache,
+                schoolService);
+    }
+
+    /** 上海大学，测试用固定学校 */
+    private School shu() {
+        School s = new School();
+        s.setId(1L);
+        s.setName("上海大学");
+        s.setCode("SHU");
+        s.setEmailDomain("@shu.edu.cn");
+        s.setStatus("ACTIVE");
+        return s;
     }
 
     @Test
@@ -102,10 +119,12 @@ class AuthServiceTest {
     void registerStoresCanonicalIdAndBuildsNicknameFromIt() {
         RegisterDTO dto = new RegisterDTO();
         dto.setStudentId("  ABcd1234  ");
+        dto.setSchoolId(1L);
         dto.setPassword("secret1");
         dto.setConfirmPassword("secret1");
         dto.setSecurityQuestion("你的小学名称是？");
         dto.setSecurityAnswer("Answer");
+        when(schoolMapper.selectById(1L)).thenReturn(shu());
         when(userMapper.selectOne(any())).thenReturn(null);
         when(passwordEncoder.encode(anyString()))
                 .thenAnswer(invocation -> "encoded:" + invocation.getArgument(0));
@@ -121,12 +140,76 @@ class AuthServiceTest {
         verify(userMapper).insert(captor.capture());
         assertEquals("abcd1234", captor.getValue().getStudentId());
         assertEquals("同学_1234", captor.getValue().getNickname());
+        assertEquals(1L, captor.getValue().getSchoolId());
         assertEquals(1, captor.getValue().getLevel());
         assertEquals(0, captor.getValue().getExp());
         assertEquals(0, captor.getValue().getTokenVersion());
         assertEquals(0, jwtUtils.parse(result.getToken()).get(
                 JwtUtils.TOKEN_VERSION_CLAIM, Integer.class));
         assertNotNull(result.getToken());
+        // 未填学校邮箱也可注册，VO 带学校名称
+        assertEquals(null, captor.getValue().getSchoolEmail());
+        assertEquals("上海大学", result.getUser().getSchoolName());
+    }
+
+    @Test
+    void registerRejectsUnknownSchool() {
+        RegisterDTO dto = new RegisterDTO();
+        dto.setStudentId("abcd1234");
+        dto.setSchoolId(999L);
+        dto.setPassword("secret1");
+        dto.setConfirmPassword("secret1");
+        dto.setSecurityQuestion("你的小学名称是？");
+        dto.setSecurityAnswer("Answer");
+        when(schoolMapper.selectById(999L)).thenReturn(null);
+
+        BusinessException ex = assertThrows(
+                BusinessException.class, () -> service.register(dto));
+        assertEquals(ResultCode.BAD_REQUEST.getCode(), ex.getCode());
+    }
+
+    @Test
+    void registerRejectsEmailWithWrongDomain() {
+        RegisterDTO dto = new RegisterDTO();
+        dto.setStudentId("abcd1234");
+        dto.setSchoolId(1L);
+        dto.setSchoolEmail("student@dhu.edu.cn"); // 上海大学要求 @shu.edu.cn
+        dto.setPassword("secret1");
+        dto.setConfirmPassword("secret1");
+        dto.setSecurityQuestion("你的小学名称是？");
+        dto.setSecurityAnswer("Answer");
+        when(schoolMapper.selectById(1L)).thenReturn(shu());
+
+        BusinessException ex = assertThrows(
+                BusinessException.class, () -> service.register(dto));
+        assertEquals(ResultCode.BAD_REQUEST.getCode(), ex.getCode());
+    }
+
+    @Test
+    void registerStoresMatchingSchoolEmailWithoutVerificationCode() {
+        RegisterDTO dto = new RegisterDTO();
+        dto.setStudentId("abcd1234");
+        dto.setSchoolId(1L);
+        dto.setSchoolEmail("  20240101@SHU.EDU.CN ");
+        dto.setPassword("secret1");
+        dto.setConfirmPassword("secret1");
+        dto.setSecurityQuestion("你的小学名称是？");
+        dto.setSecurityAnswer("Answer");
+        when(schoolMapper.selectById(1L)).thenReturn(shu());
+        when(userMapper.selectOne(any())).thenReturn(null);
+        when(passwordEncoder.encode(anyString()))
+                .thenAnswer(invocation -> "encoded:" + invocation.getArgument(0));
+        doAnswer(invocation -> {
+            ((SysUser) invocation.getArgument(0)).setId(7L);
+            return 1;
+        }).when(userMapper).insert(any(SysUser.class));
+
+        LoginVO result = service.register(dto);
+
+        ArgumentCaptor<SysUser> captor = ArgumentCaptor.forClass(SysUser.class);
+        verify(userMapper).insert(captor.capture());
+        assertEquals("20240101@shu.edu.cn", captor.getValue().getSchoolEmail());
+        assertEquals("20240101@shu.edu.cn", result.getUser().getSchoolEmail());
     }
 
     @Test
