@@ -90,9 +90,19 @@
               </button>
             </template>
 
-            <div v-else-if="o.status === 'COMPLETED'" class="order-extra muted">
-              {{ fmtTime(o.completedAt) }} 完成
-            </div>
+            <template v-else-if="o.status === 'COMPLETED'">
+              <button
+                v-if="o.reviewed === false"
+                class="btn btn--yellow btn--sm"
+                @click="openReview(o)"
+              >
+                ⭐ 评价卖家
+              </button>
+              <span v-else-if="o.reviewed" class="muted order-extra">已评价</span>
+              <div class="order-extra muted">
+                {{ fmtTime(o.completedAt) }} 完成
+              </div>
+            </template>
             <div v-else-if="o.status === 'CANCELLED'" class="order-extra muted">
               {{ fmtTime(o.cancelledAt) }} 取消
             </div>
@@ -111,7 +121,16 @@
           @current-change="fetchOrders"
         />
       </div>
+
     </div>
+
+    <OrderReviewDialog
+      :visible="reviewVisible"
+      :order="reviewingOrder"
+      :submitting="submittingReview"
+      @close="reviewVisible = false"
+      @submit="handleSubmitReview"
+    />
   </DefaultLayout>
 </template>
 
@@ -119,7 +138,32 @@
 import { ref, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import DefaultLayout from '@/components/layout/DefaultLayout.vue'
-import { getBoughtOrders, confirmReceipt, cancelOrder } from '@/api/order'
+import OrderReviewDialog from '@/components/trade/OrderReviewDialog.vue'
+import { getBoughtOrders, confirmReceipt, cancelOrder, reviewOrder } from '@/api/order'
+
+// ---- 评价弹窗（A7）----
+const reviewVisible = ref(false)
+const reviewingOrder = ref(null)
+const submittingReview = ref(false)
+
+function openReview(order) {
+  reviewingOrder.value = order
+  reviewVisible.value = true
+}
+
+async function handleSubmitReview(reviewForm) {
+  submittingReview.value = true
+  try {
+    await reviewOrder(reviewingOrder.value.id, reviewForm)
+    ElMessage.success('评价成功！')
+    reviewVisible.value = false
+    fetchOrders()
+  } catch (e) {
+    // 提示由 request.js 处理
+  } finally {
+    submittingReview.value = false
+  }
+}
 
 // ---- 筛选 ----
 const filters = [
@@ -432,4 +476,5 @@ onMounted(() => {
     align-items: center;
   }
 }
+
 </style>

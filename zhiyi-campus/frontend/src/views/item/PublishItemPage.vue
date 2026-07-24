@@ -39,10 +39,13 @@
           <div class="form-pair">
             <el-form-item prop="categoryId" class="field">
               <label for="publish-category">所属大类 <span class="req">*</span></label>
-              <select id="publish-category" v-model="form.categoryId" class="select">
-                <option value="" disabled>选择一个大类</option>
-                <option v-for="category in categories" :key="category.id" :value="category.id">{{ category.name }}</option>
-              </select>
+              <AppSelect
+                id="publish-category"
+                v-model="form.categoryId"
+                :options="categoryOptions"
+                placeholder="选择一个大类"
+                aria-label="所属大类"
+              />
               <p class="hint">小分类不用选，AI 会自动打标签</p>
             </el-form-item>
             <el-form-item prop="price" class="field">
@@ -114,6 +117,7 @@
 import { computed, nextTick, onMounted, reactive, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
+import AppSelect from '@/components/common/AppSelect.vue'
 import DefaultLayout from '@/components/layout/DefaultLayout.vue'
 import { getCategories, getOwnItem, publishItem, updateItem, uploadItemImage } from '@/api/item'
 
@@ -131,6 +135,9 @@ const router = useRouter()
 const route = useRoute()
 const formRef = ref(null)
 const categories = ref([])
+const categoryOptions = computed(() =>
+  categories.value.map((category) => ({ label: category.name, value: category.id }))
+)
 const uploading = ref(false)
 const submitting = ref(false)
 const pageLoading = ref(false)

@@ -7,12 +7,17 @@ import com.zhiyi.module.user.dto.ChangePasswordDTO;
 import com.zhiyi.module.user.dto.UpdateProfileDTO;
 import com.zhiyi.module.user.entity.ExpLog;
 import com.zhiyi.module.user.service.AccountSecurityService;
+import com.zhiyi.module.user.service.ReputationService;
 import com.zhiyi.module.user.service.UserService;
 import com.zhiyi.module.user.vo.PublicUserCardVO;
+import com.zhiyi.module.user.vo.ReputationVO;
+import com.zhiyi.module.user.vo.SellerDetailVO;
 import com.zhiyi.module.user.vo.UserVO;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
 
 /**
  * 模块一：用户信息与成长体系接口（B.1 附录接口清单）
@@ -31,6 +36,7 @@ public class UserController {
 
     private final UserService userService;
     private final AccountSecurityService accountSecurityService;
+    private final ReputationService reputationService;
 
     @GetMapping("/profile")
     public Result<UserVO> profile(@RequestAttribute("userId") Long userId) {
@@ -53,6 +59,26 @@ public class UserController {
     @GetMapping("/{id}/card")
     public Result<PublicUserCardVO> card(@PathVariable Long id) {
         return Result.ok(userService.getPublicProfile(id));
+    }
+
+    /** 商品详情卖家档案：含联系方式和校园资料，仅登录用户可查看。 */
+    @GetMapping("/{id}/seller-detail")
+    public Result<SellerDetailVO> sellerDetail(@RequestAttribute("userId") Long viewerId,
+                                               @PathVariable Long id) {
+        return Result.ok(userService.getSellerDetail(viewerId, id));
+    }
+
+    /** 伪熟人信任标签（A5）：当前登录用户视角看目标用户 → ["同学院","同级","同楼"] */
+    @GetMapping("/{id}/relation")
+    public Result<List<String>> relation(@RequestAttribute("userId") Long viewerId,
+                                         @PathVariable Long id) {
+        return Result.ok(userService.getRelationTags(viewerId, id));
+    }
+
+    /** 信誉雷达五维分值（A6）：公开接口，供个人中心和卖家详情的雷达图渲染 */
+    @GetMapping("/{id}/reputation")
+    public Result<ReputationVO> reputation(@PathVariable Long id) {
+        return Result.ok(reputationService.compute(id));
     }
 
     @PutMapping("/change-password")

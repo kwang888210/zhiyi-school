@@ -130,8 +130,12 @@ import { ElMessage } from 'element-plus'
 import DefaultLayout from '@/components/layout/DefaultLayout.vue'
 import UserAvatar from '@/components/common/UserAvatar.vue'
 import LevelBadge from '@/components/common/LevelBadge.vue'
-import { getAdminSessions } from '@/api/admin'
-import { getChatMessages, sendChatMessage, getUnreadMessages } from '@/api/chat'
+import {
+  getAdminSessions,
+  getAdminChatMessages,
+  getAdminUnreadMessages,
+  sendAdminChatMessage,
+} from '@/api/admin'
 
 // ---- 会话列表 ----
 const sessions = ref([])
@@ -170,7 +174,7 @@ async function loadMessages() {
   if (!activeConv.value) return
   messagesLoading.value = true
   try {
-    const res = await getChatMessages({
+    const res = await getAdminChatMessages({
       conversationId: activeConv.value,
       peerId: activePeer.value?.id,
     })
@@ -187,7 +191,7 @@ async function handleSend() {
   if (!text || !activePeer.value) return
   sending.value = true
   try {
-    await sendChatMessage({
+    await sendAdminChatMessage({
       conversationId: activeConv.value,
       receiverId: activePeer.value.id,
       content: text,
@@ -217,7 +221,7 @@ let pollTimer = null
 async function poll() {
   if (!activeConv.value) return
   try {
-    const res = await getUnreadMessages({ conversationId: activeConv.value })
+    const res = await getAdminUnreadMessages({ conversationId: activeConv.value })
     const unread = res.data || []
     if (unread.length > 0) {
       await loadMessages()

@@ -21,3 +21,8 @@ export function getBoughtOrders(params) {
 export function getSoldOrders(params) {
   return request.get('/order/my-sold', { params })
 }
+
+/** 买家确认收货后对卖家评价（A7） */
+export function reviewOrder(orderId, data) {
+  return request.post(`/order/${orderId}/review`, data)
+}

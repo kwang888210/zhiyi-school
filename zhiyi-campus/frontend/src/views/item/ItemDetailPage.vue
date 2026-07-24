@@ -81,9 +81,11 @@
                   {{ item.publisherNickname || '同学' }}
                   <LevelBadge :level="item.publisherLevel || 1" show-title />
                 </div>
-                <div class="seller-card__sub">卖家等级已接入成长体系，交易前可先沟通验货细节</div>
-                <div class="exp-bar" aria-hidden="true"><i></i></div>
               </div>
+              <button class="btn btn--sm seller-card__detail" type="button" @click="openSellerDetail">
+                查看详情
+                <span aria-hidden="true">↗</span>
+              </button>
             </div>
 
             <div class="card card--flat desc-block">
@@ -131,6 +133,16 @@
         <p class="muted">商品不存在或已被删除</p>
         <router-link to="/" class="btn btn--primary">回到大厅</router-link>
       </div>
+
+      <SellerDetailDialog
+        :visible="sellerDialogVisible"
+        :seller="sellerDetail"
+        :reputation="sellerReputation"
+        :loading="sellerDetailLoading"
+        :error="sellerDetailError"
+        @close="closeSellerDetail"
+        @retry="loadSellerDetail"
+      />
     </div>
   </DefaultLayout>
 </template>
@@ -144,7 +156,9 @@ import DefaultLayout from '@/components/layout/DefaultLayout.vue'
 import LevelBadge from '@/components/common/LevelBadge.vue'
 import PriceTag from '@/components/common/PriceTag.vue'
 import UserAvatar from '@/components/common/UserAvatar.vue'
+import SellerDetailDialog from '@/components/user/SellerDetailDialog.vue'
 import { getItemDetail, toggleFavorite } from '@/api/item'
+import { getSellerDetail, getUserReputation } from '@/api/auth'
 import { startItemConversation } from '@/api/chat'
 import { createOrder } from '@/api/order'
 import { getUserId, isLoggedIn } from '@/utils/auth'
@@ -163,6 +177,11 @@ const buyLoading = ref(false)
 const favorite = ref(false)
 const favoriteCount = ref(0)
 const activeImage = ref('')
+const sellerDialogVisible = ref(false)
+const sellerDetailLoading = ref(false)
+const sellerDetailError = ref(false)
+const sellerDetail = ref(null)
+const sellerReputation = ref(null)
 
 const isOwner = computed(() => String(item.value?.publisherId || '') === String(getUserId() || ''))
 const activeImageIndex = computed(() => {
@@ -244,6 +263,48 @@ async function contactSeller() {
   } finally {
     chatLoading.value = false
   }
+}
+
+async function loadSellerDetail() {
+  const sellerId = item.value?.publisherId
+  if (!sellerId) return
+
+  sellerDetailLoading.value = true
+  sellerDetailError.value = false
+  try {
+    const [detailResult, reputationResult] = await Promise.allSettled([
+      getSellerDetail(sellerId),
+      getUserReputation(sellerId),
+    ])
+
+    if (detailResult.status === 'fulfilled') {
+      sellerDetail.value = detailResult.value.data
+    } else {
+      sellerDetailError.value = true
+    }
+
+    sellerReputation.value = reputationResult.status === 'fulfilled'
+      ? reputationResult.value.data
+      : null
+  } finally {
+    sellerDetailLoading.value = false
+  }
+}
+
+function openSellerDetail() {
+  if (!requireLogin()) return
+  sellerDetail.value = {
+    id: item.value.publisherId,
+    nickname: item.value.publisherNickname,
+    level: item.value.publisherLevel,
+  }
+  sellerReputation.value = null
+  sellerDialogVisible.value = true
+  loadSellerDetail()
+}
+
+function closeSellerDetail() {
+  sellerDialogVisible.value = false
 }
 
 async function handleBuy() {
@@ -503,27 +564,8 @@ onMounted(fetchDetail)
   flex-wrap: wrap;
 }
 
-.seller-card__sub {
-  font-size: 12.5px;
-  color: var(--ink-soft);
-  margin-top: 2px;
-}
-
-.exp-bar {
-  margin-top: 7px;
-  height: 10px;
-  border: 1.5px solid var(--ink);
-  border-radius: 6px;
-  background: var(--white);
-  overflow: hidden;
-  max-width: 220px;
-}
-
-.exp-bar i {
-  display: block;
-  height: 100%;
-  width: 62%;
-  background: repeating-linear-gradient(-45deg, var(--green) 0 8px, #4FBF82 8px 16px);
+.seller-card__detail {
+  flex: 0 0 auto;
 }
 
 .desc-block {
@@ -580,6 +622,18 @@ onMounted(fetchDetail)
 
   .gallery {
     position: static;
+  }
+}
+
+@media (max-width: 520px) {
+  .seller-card {
+    align-items: flex-start;
+    flex-wrap: wrap;
+  }
+
+  .seller-card__detail {
+    width: calc(100% - 78px);
+    margin-left: 78px;
   }
 }
 </style>

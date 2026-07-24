@@ -56,3 +56,32 @@ export function resetUserPassword(data) {
 export function getAdminSessions() {
   return request.get('/admin/chat/sessions')
 }
+
+export function getAdminChatMessages(params) {
+  return request.get('/admin/chat/messages', { params })
+}
+
+export function sendAdminChatMessage(data) {
+  return request.post('/admin/chat/send', data)
+}
+
+export function getAdminUnreadMessages(params) {
+  return request.get('/admin/chat/unread', { params })
+}
+
+/** 分类管理 */
+export function getAdminCategories() {
+  return request.get('/admin/categories')
+}
+
+export function createCategory(data) {
+  return request.post('/admin/categories', data)
+}
+
+export function updateCategory(id, data) {
+  return request.put(`/admin/categories/${id}`, data)
+}
+
+export function deleteCategory(id) {
+  return request.delete(`/admin/categories/${id}`)
+}
