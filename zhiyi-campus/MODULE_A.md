@@ -94,6 +94,7 @@ Controller 类或方法上加 `@RoleRequired("ADMIN")` 即可，无需自己判�
 - 等级徽章 / 头像 / 价格公共组件：`components/common/LevelBadge.vue`、`UserAvatar.vue`、`PriceTag.vue`。
 - 学校选择统一使用 `components/common/AppSelect.vue`，不要再新增原生 `<select>`。
 - 信誉展示统一使用 `components/common/ReputationRadar.vue`；订单评价统一使用 `components/trade/OrderReviewDialog.vue`；卖家详情统一使用 `components/user/SellerDetailDialog.vue`。
+- A5 关系标签在商品详情卖家卡片的等级徽章旁直接展示；仅在匹配到同学院、同级或同楼时出现，不占用卖家详情弹窗空间。
 - Element Plus 浮层的全局视觉与层级规则集中在 `assets/styles/element-overlays.css`，包括普通对话框、确认框、账户菜单、选择器下拉和顶部消息提示。
 - 顶部操作提示默认 3 秒自动关闭，并统一显示可提前关闭的“×”按钮。
 - 占位页：非 A 页面统一用 `components/common/WipPage.vue` 占位，实现后直接替换。

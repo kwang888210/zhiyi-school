@@ -80,6 +80,14 @@
                 <div class="seller-card__name">
                   {{ item.publisherNickname || '同学' }}
                   <LevelBadge :level="item.publisherLevel || 1" show-title />
+                  <template v-if="canCompareSeller">
+                    <span
+                      v-for="relation in sellerRelations"
+                      :key="relation"
+                      class="seller-card__relation-tag"
+                      :aria-label="`校园关系：${relation}`"
+                    >{{ relation }}</span>
+                  </template>
                 </div>
               </div>
               <button class="btn btn--sm seller-card__detail" type="button" @click="openSellerDetail">
@@ -158,10 +166,11 @@ import PriceTag from '@/components/common/PriceTag.vue'
 import UserAvatar from '@/components/common/UserAvatar.vue'
 import SellerDetailDialog from '@/components/user/SellerDetailDialog.vue'
 import { getItemDetail, toggleFavorite } from '@/api/item'
-import { getSellerDetail, getUserReputation } from '@/api/auth'
+import { getSellerDetail, getUserRelation, getUserReputation } from '@/api/auth'
 import { startItemConversation } from '@/api/chat'
 import { createOrder } from '@/api/order'
 import { getUserId, isLoggedIn } from '@/utils/auth'
+import { normalizeRelationTags } from '@/utils/relation'
 
 const STATUS_TEXT = { ON_SALE: '在售中', PENDING: '交易中', SOLD: '已售出', OFF_SHELF: '已下架' }
 const STATUS_BADGE = { ON_SALE: 'badge--ok', PENDING: 'badge--warn', SOLD: 'badge--muted', OFF_SHELF: 'badge--muted' }
@@ -182,8 +191,10 @@ const sellerDetailLoading = ref(false)
 const sellerDetailError = ref(false)
 const sellerDetail = ref(null)
 const sellerReputation = ref(null)
+const sellerRelations = ref([])
 
 const isOwner = computed(() => String(item.value?.publisherId || '') === String(getUserId() || ''))
+const canCompareSeller = computed(() => !!item.value?.publisherId && !isOwner.value && isLoggedIn())
 const activeImageIndex = computed(() => {
   const images = item.value?.images || []
   const index = images.indexOf(activeImage.value)
@@ -215,16 +226,32 @@ function switchImage(offset) {
 
 async function fetchDetail() {
   loading.value = true
+  sellerRelations.value = []
   try {
     const res = await getItemDetail(route.params.id)
     item.value = res.data
     activeImage.value = item.value.coverImage || item.value.images?.[0] || ''
     favorite.value = !!item.value.favoriteByCurrentUser
     favoriteCount.value = Number(item.value.favoriteCount || 0)
+    loadSellerRelation(item.value.publisherId)
   } catch {
     item.value = null
   } finally {
     loading.value = false
+  }
+}
+
+async function loadSellerRelation(sellerId) {
+  if (!sellerId || !canCompareSeller.value) {
+    sellerRelations.value = []
+    return
+  }
+
+  try {
+    const res = await getUserRelation(sellerId)
+    sellerRelations.value = normalizeRelationTags(res.data)
+  } catch {
+    sellerRelations.value = []
   }
 }
 
@@ -562,6 +589,26 @@ onMounted(fetchDetail)
   align-items: center;
   gap: 8px;
   flex-wrap: wrap;
+}
+
+.seller-card__relation-tag {
+  padding: 3px 9px;
+  color: var(--ink);
+  background: var(--yellow);
+  border: 1.5px solid var(--ink);
+  border-radius: 999px;
+  box-shadow: 1px 1px 0 var(--ink);
+  font-size: 11.5px;
+  font-weight: 900;
+  line-height: 1.3;
+}
+
+.seller-card__relation-tag:nth-of-type(3n + 2) {
+  background: #DCEEFF;
+}
+
+.seller-card__relation-tag:nth-of-type(3n) {
+  background: #D6F2DF;
 }
 
 .seller-card__detail {
