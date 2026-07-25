@@ -1,6 +1,7 @@
 package com.zhiyi.module.user.dto;
 
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 import lombok.Data;
@@ -14,6 +15,17 @@ public class RegisterDTO {
     @NotBlank(message = "学号不能为空")
     @Pattern(regexp = "^[A-Za-z0-9]{4,20}$", message = "学号须为 4-20 位字母或数字")
     private String studentId;
+
+    /** 所属学校（模块一创新功能，注册必填） */
+    @NotNull(message = "请选择所属学校")
+    private Long schoolId;
+
+    /**
+     * 学校邮箱（可选），无需验证码；填写时后缀须与所选学校匹配。
+     */
+    @Size(max = 100, message = "邮箱最长 100 字")
+    @Pattern(regexp = "^$|^[^@\\s]+@[^@\\s]+$", message = "邮箱格式不正确")
+    private String schoolEmail;
 
     @NotBlank(message = "密码不能为空")
     @Size(min = 6, max = 64, message = "密码不少于 6 位")

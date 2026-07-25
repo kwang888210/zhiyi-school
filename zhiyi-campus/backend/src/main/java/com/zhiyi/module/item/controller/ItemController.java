@@ -95,8 +95,8 @@ public class ItemController {
     }
 
     @GetMapping("/tags")
-    public Result<List<Map<String, Object>>> allTags() {
-        return Result.ok(marketplaceService.getAllTags());
+    public Result<List<Map<String, Object>>> allTags(HttpServletRequest request) {
+        return Result.ok(marketplaceService.getAllTags(optionalCurrentUser(request)));
     }
 
     @GetMapping("/ranking")
@@ -106,8 +106,9 @@ public class ItemController {
     }
 
     @GetMapping("/ranking/tags")
-    public Result<List<AiTagTrendVO>> trendingAiTags(@RequestParam(defaultValue = "10") int limit) {
-        return Result.ok(marketplaceService.trendingAiTags(limit));
+    public Result<List<AiTagTrendVO>> trendingAiTags(@RequestParam(defaultValue = "10") int limit,
+                                                     HttpServletRequest request) {
+        return Result.ok(marketplaceService.trendingAiTags(limit, optionalCurrentUser(request)));
     }
 
     @GetMapping("/{id}")

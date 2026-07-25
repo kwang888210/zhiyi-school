@@ -6,6 +6,7 @@ import com.zhiyi.common.ResultCode;
 import com.zhiyi.module.user.dto.LoginDTO;
 import com.zhiyi.module.user.dto.RegisterDTO;
 import com.zhiyi.module.user.dto.ResetPasswordDTO;
+import com.zhiyi.module.user.entity.School;
 import com.zhiyi.module.user.entity.SysUser;
 import com.zhiyi.module.user.mapper.SysUserMapper;
 import com.zhiyi.module.user.support.LoginAttemptService;
@@ -50,6 +51,7 @@ public class AuthService {
     private final JwtUtils jwtUtils;
     private final LoginAttemptService loginAttemptService;
     private final UserStateCache userStateCache;
+    private final SchoolService schoolService;
 
     /**
      * 注册（需求 1.1）
@@ -62,6 +64,14 @@ public class AuthService {
             throw new BusinessException(ResultCode.BAD_REQUEST, "两次输入的密码不一致");
         }
         String studentId = StudentIdNormalizer.normalize(dto.getStudentId());
+        // 学校必填且必须启用（创新功能 A2：注册即归属学校）
+        School school = schoolService.getActiveSchool(dto.getSchoolId());
+        if (school == null) {
+            throw new BusinessException(ResultCode.BAD_REQUEST, "请选择有效的学校");
+        }
+        // 学校邮箱可选：无需验证码，填入时只校验邮箱后缀与学校是否匹配。
+        String schoolEmail = schoolService.normalizeAndValidateEmail(dto.getSchoolEmail(), school);
+
         // 密保问题支持预设列表之外的自定义问题（长度由 DTO @Size 约束）
         // 先查提示更友好（非并发场景直接命中）；并发窗口由唯一索引兜底
         SysUser exists = userMapper.selectOne(Wrappers.<SysUser>lambdaQuery()
@@ -79,6 +89,8 @@ public class AuthService {
         user.setPassword(passwordEncoder.encode(dto.getPassword()));                    // BCrypt，不存明文
         user.setNickname(defaultNickname(dto.getNickname(), studentId));
         user.setPhone(dto.getPhone());
+        user.setSchoolId(school.getId());
+        user.setSchoolEmail(schoolEmail);
         user.setRole("USER");
         user.setStatus("ACTIVE");
         user.setLevel(1);
@@ -96,7 +108,7 @@ public class AuthService {
 
         String token = jwtUtils.generateToken(
                 user.getId(), user.getRole(), user.getTokenVersion());
-        return new LoginVO(token, UserVO.from(user));
+        return new LoginVO(token, UserVO.from(user, school.getName()));
     }
 
     /**

@@ -11,6 +11,8 @@ public class Item {
     @TableId(type = IdType.AUTO)
     private Long id;
     private Long publisherId;
+    /** 发布时固化发布者所属学校，用于大厅、搜索和排行的数据隔离。 */
+    private Long schoolId;
     private String type;            // SELL / BUY
     private String title;
     private String description;

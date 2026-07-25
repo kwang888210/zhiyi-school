@@ -27,6 +27,7 @@ public enum ResultCode {
     USER_CANCELLED(1008, "该账户已注销"),
     BALANCE_NOT_ENOUGH(3001, "余额不足"),
     ORDER_STATUS_ERROR(3002, "订单状态异常"),
+    ORDER_ALREADY_REVIEWED(3003, "该订单已评价"),
     ITEM_NOT_ON_SALE(2001, "商品已下架或已售出"),
     AI_VIOLATION(2002, "内容涉嫌违规，已被拦截"),
     DUPLICATE_FAVORITE(2003, "已收藏过该商品");

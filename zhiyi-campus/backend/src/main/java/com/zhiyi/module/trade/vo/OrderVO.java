@@ -27,4 +27,7 @@ public class OrderVO {
     private LocalDateTime createdAt;
     private LocalDateTime completedAt;
     private LocalDateTime cancelledAt;
+
+    /** 买家是否已对本单评价（A7，仅「我买的」列表填充；控制评价入口显隐） */
+    private Boolean reviewed;
 }

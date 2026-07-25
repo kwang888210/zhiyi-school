@@ -46,7 +46,17 @@
       </div>
 
       <!-- 充值弹窗 -->
-      <el-dialog v-model="showRecharge" title="模拟充值" width="420px" :close-on-click-modal="false" destroy-on-close>
+      <el-dialog
+        v-model="showRecharge"
+        class="app-dialog"
+        modal-class="app-modal"
+        title="模拟充值"
+        width="420px"
+        append-to-body
+        align-center
+        :close-on-click-modal="false"
+        destroy-on-close
+      >
         <div class="recharge-form">
           <div class="field">
             <label>充值金额 <span class="req">*</span></label>

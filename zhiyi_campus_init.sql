@@ -1,3 +1,6 @@
+-- This file is UTF-8. Set the connection charset before any non-ASCII SQL.
+SET NAMES utf8mb4 COLLATE utf8mb4_unicode_ci;
+
 -- ============================================================
 -- 🎓 智易校园 - 数据库初始化脚本
 -- 版本：v2.0
@@ -21,6 +24,23 @@ USE zhiyi_campus;
 -- ============================================================
 
 -- -----------------------------------------------------------
+-- 2.0 school — 学校字典表（模块一创新功能：学校隔离 / 邮箱后缀规则）
+--     置于 sys_user 之前：sys_user.school_id 外键依赖本表
+-- -----------------------------------------------------------
+CREATE TABLE school (
+    id              BIGINT          NOT NULL AUTO_INCREMENT  COMMENT '学校ID',
+    name            VARCHAR(100)    NOT NULL                 COMMENT '学校名称',
+    code            VARCHAR(20)     NOT NULL                 COMMENT '学校代码（如 SHU）',
+    email_domain    VARCHAR(100)    DEFAULT NULL             COMMENT '学校邮箱后缀（如 @shu.edu.cn），用于资料一致性校验',
+    status          VARCHAR(20)     NOT NULL DEFAULT 'ACTIVE' COMMENT '状态：ACTIVE/DISABLED',
+    created_at      DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+
+    PRIMARY KEY (id),
+    UNIQUE KEY uk_code (code)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='学校字典表';
+
+
+-- -----------------------------------------------------------
 -- 2.1 sys_user — 用户表
 -- -----------------------------------------------------------
 CREATE TABLE sys_user (
@@ -29,6 +49,11 @@ CREATE TABLE sys_user (
     password        VARCHAR(255)    NOT NULL                 COMMENT 'BCrypt加密密码',
     nickname        VARCHAR(50)     NOT NULL                 COMMENT '昵称',
     phone           VARCHAR(20)     DEFAULT NULL             COMMENT '手机号',
+    school_id       BIGINT          DEFAULT NULL             COMMENT '所属学校ID（普通功能按学校隔离；管理员默认上海大学）',
+    school_email    VARCHAR(100)    DEFAULT NULL             COMMENT '学校邮箱（可选，后缀须与所属学校匹配）',
+    college         VARCHAR(50)     DEFAULT NULL             COMMENT '学院（个人中心自愿补全，信任标签用）',
+    grade           VARCHAR(10)     DEFAULT NULL             COMMENT '年级（个人中心自愿补全，信任标签用）',
+    dormitory       VARCHAR(50)     DEFAULT NULL             COMMENT '宿舍楼（个人中心自愿补全，信任标签用）',
     role            VARCHAR(20)     NOT NULL DEFAULT 'USER'  COMMENT '角色：USER/ADMIN',
     status          VARCHAR(20)     NOT NULL DEFAULT 'ACTIVE' COMMENT '状态：ACTIVE/BANNED_TEMP/BANNED_PERM/CANCELLED（已注销）',
     ban_until_time  DATETIME        DEFAULT NULL             COMMENT '封禁截止时间（临时封禁）',
@@ -44,7 +69,9 @@ CREATE TABLE sys_user (
     PRIMARY KEY (id),
     UNIQUE KEY  uk_student_id (student_id),
     INDEX       idx_status (status),
-    INDEX       idx_role (role)
+    INDEX       idx_role (role),
+    INDEX       idx_school (school_id),
+    CONSTRAINT  fk_user_school FOREIGN KEY (school_id) REFERENCES school(id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='用户表';
 
 
@@ -69,6 +96,7 @@ CREATE TABLE category (
 CREATE TABLE item (
     id              BIGINT          NOT NULL AUTO_INCREMENT  COMMENT '商品ID',
     publisher_id    BIGINT          NOT NULL                 COMMENT '发布者ID',
+    school_id       BIGINT          NOT NULL                 COMMENT '所属学校ID（发布时从用户资料固化）',
     type            VARCHAR(10)     NOT NULL                 COMMENT '类型：SELL出售/BUY求购',
     title           VARCHAR(100)    NOT NULL                 COMMENT '商品标题',
     description     TEXT            NOT NULL                 COMMENT '商品描述',
@@ -88,9 +116,11 @@ CREATE TABLE item (
     INDEX idx_status (status),
     INDEX idx_category (category_id),
     INDEX idx_publisher (publisher_id),
+    INDEX idx_school (school_id),
     INDEX idx_type (type),
     INDEX idx_created (created_at),
     CONSTRAINT fk_item_publisher  FOREIGN KEY (publisher_id) REFERENCES sys_user(id),
+    CONSTRAINT fk_item_school     FOREIGN KEY (school_id)    REFERENCES school(id),
     CONSTRAINT fk_item_category   FOREIGN KEY (category_id)  REFERENCES category(id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='商品/需求表';
 
@@ -249,18 +279,48 @@ CREATE TABLE exp_log (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='经验值变动记录表';
 
 
+-- -----------------------------------------------------------
+-- 2.11 trade_review — 交易评价表（模块一创新功能：信誉体系）
+-- -----------------------------------------------------------
+CREATE TABLE trade_review (
+    id          BIGINT          NOT NULL AUTO_INCREMENT  COMMENT '评价ID',
+    order_id    BIGINT          NOT NULL                 COMMENT '订单ID（一单一评）',
+    reviewer_id BIGINT          NOT NULL                 COMMENT '评价者ID（买家）',
+    target_id   BIGINT          NOT NULL                 COMMENT '被评价者ID（卖家）',
+    rating      TINYINT         NOT NULL                 COMMENT '评分 1-5 星',
+    accurate    TINYINT(1)      NOT NULL DEFAULT 1       COMMENT '描述准确：1 准确 / 0 不符',
+    comment     VARCHAR(200)    DEFAULT NULL             COMMENT '评价内容',
+    created_at  DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '评价时间',
+
+    PRIMARY KEY (id),
+    UNIQUE KEY uk_order (order_id),
+    INDEX idx_target (target_id),
+    CONSTRAINT fk_review_order    FOREIGN KEY (order_id)    REFERENCES trade_order(id),
+    CONSTRAINT fk_review_reviewer FOREIGN KEY (reviewer_id) REFERENCES sys_user(id),
+    CONSTRAINT fk_review_target   FOREIGN KEY (target_id)   REFERENCES sys_user(id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='交易评价表';
+
+
 -- ============================================================
 -- 3. 初始数据
 -- ============================================================
 
 -- -----------------------------------------------------------
+-- 3.0 学校种子数据（贯穿实例：上海大学 / 东华大学）
+-- -----------------------------------------------------------
+INSERT INTO school (name, code, email_domain) VALUES
+('上海大学', 'SHU', '@shu.edu.cn'),
+('东华大学', 'DHU', '@dhu.edu.cn');
+
+-- -----------------------------------------------------------
 -- 3.1 系统管理员（账号 admin；密码与密保答案均以 BCrypt 哈希形式保存，初始化后请在本地重置）
 -- -----------------------------------------------------------
-INSERT INTO sys_user (student_id, password, nickname, role, status, level, exp, wallet_balance, security_question, security_answer)
+INSERT INTO sys_user (student_id, password, nickname, school_id, role, status, level, exp, wallet_balance, security_question, security_answer)
 VALUES (
     'admin',
     '$2a$10$8Jcbe5NyLSowgw.3zOB9bOgoKCpwTuoHWLDAv0robpXmRA10hBngS',  -- BCrypt 哈希
     '系统管理员',
+    (SELECT id FROM school WHERE code = 'SHU'),
     'ADMIN',
     'ACTIVE',
     99,

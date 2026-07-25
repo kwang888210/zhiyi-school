@@ -13,4 +13,6 @@ public class PublicUserCardVO {
     private String nickname;
     private Integer level;
     private String levelTitle;
+    /** 学校名称（A8：公开名片展示归属校，未绑定为 null） */
+    private String schoolName;
 }

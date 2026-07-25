@@ -217,7 +217,6 @@ class AdminServiceTest {
 
             when(violationReportMapper.selectPage(any(Page.class), any())).thenReturn(page);
             when(sysUserMapper.selectBatchIds(List.of(10L))).thenReturn(List.of(reporter));
-            when(sysUserMapper.selectBatchIds(List.of())).thenReturn(List.of());
             when(itemMapper.selectBatchIds(List.of(100L))).thenReturn(List.of(item));
 
             IPage<ViolationVO> result = service.getViolations(1, 10, "PENDING");

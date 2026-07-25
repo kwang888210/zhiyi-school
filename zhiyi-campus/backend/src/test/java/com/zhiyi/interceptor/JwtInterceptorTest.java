@@ -58,6 +58,15 @@ class JwtInterceptorTest {
     }
 
     @Test
+    void sellerContactDetailRequiresAuthentication() throws Exception {
+        MockHttpServletResponse response = new MockHttpServletResponse();
+
+        assertFalse(interceptor.preHandle(
+                new MockHttpServletRequest("GET", "/api/user/42/seller-detail"), response, new Object()));
+        assertEquals(401, response.getStatus());
+    }
+
+    @Test
     void matchingVersionIsAccepted() throws Exception {
         JwtUtils utils = jwtUtils();
         JwtInterceptor secured = new JwtInterceptor(

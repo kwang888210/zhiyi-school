@@ -6,12 +6,15 @@ import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.zhiyi.common.BusinessException;
 import com.zhiyi.common.ResultCode;
+import com.zhiyi.common.SchoolScopeGuard;
 import com.zhiyi.module.item.entity.Item;
 import com.zhiyi.module.item.mapper.ItemMapper;
 import com.zhiyi.module.trade.dto.CreateOrderDTO;
 import com.zhiyi.module.trade.entity.TradeOrder;
+import com.zhiyi.module.trade.entity.TradeReview;
 import com.zhiyi.module.trade.entity.WalletLog;
 import com.zhiyi.module.trade.mapper.TradeOrderMapper;
+import com.zhiyi.module.trade.mapper.TradeReviewMapper;
 import com.zhiyi.module.trade.mapper.WalletLogMapper;
 import com.zhiyi.module.trade.vo.OrderVO;
 import com.zhiyi.module.user.entity.SysUser;
@@ -45,6 +48,7 @@ public class OrderService {
     private final SysUserMapper sysUserMapper;
     private final ItemMapper itemMapper;
     private final TradeOrderMapper orderMapper;
+    private final TradeReviewMapper reviewMapper;
     private final WalletLogMapper walletLogMapper;
     private final UserGrowthService growthService;
 
@@ -88,11 +92,21 @@ public class OrderService {
         if (buyer == null) {
             throw new BusinessException(ResultCode.USER_NOT_FOUND);
         }
+        SchoolScopeGuard.requireSame(
+                buyer.getSchoolId(), item.getSchoolId(), "仅支持购买本校商品");
         if (buyer.getWalletBalance().compareTo(price) < 0) {
             throw new BusinessException(ResultCode.BALANCE_NOT_ENOUGH);
         }
 
-        // 4. 原子扣款（WHERE 条件兜底余额不足的并发竞态）
+        // 4. 卖家当前学校也必须与商品及买家一致，避免转校后的旧商品形成跨校交易。
+        SysUser seller = sysUserMapper.selectById(item.getPublisherId());
+        if (seller == null) {
+            throw new BusinessException(ResultCode.USER_NOT_FOUND);
+        }
+        SchoolScopeGuard.requireSame(
+                buyer.getSchoolId(), seller.getSchoolId(), "仅支持同校交易");
+
+        // 5. 原子扣款（WHERE 条件兜底余额不足的并发竞态）
         LambdaUpdateWrapper<SysUser> deduct = new LambdaUpdateWrapper<>();
         deduct.setSql("wallet_balance = wallet_balance - {0}", price)
               .eq(SysUser::getId, buyerId)
@@ -101,7 +115,7 @@ public class OrderService {
             throw new BusinessException(ResultCode.BALANCE_NOT_ENOUGH);
         }
 
-        // 5. 二次检查：扣款后再次确认没有并发创建了同一商品的活跃订单
+        // 6. 二次检查：扣款后再次确认没有并发创建了同一商品的活跃订单
         Long recheckCount = orderMapper.selectCount(
                 new LambdaQueryWrapper<TradeOrder>()
                         .eq(TradeOrder::getItemId, item.getId())
@@ -110,10 +124,10 @@ public class OrderService {
             throw new BusinessException(ResultCode.CONFLICT, "该商品已被他人抢先下单");
         }
 
-        // 6. 回读最新余额
+        // 7. 回读最新余额
         SysUser buyerAfter = sysUserMapper.selectById(buyerId);
 
-        // 7. 创建订单
+        // 8. 创建订单
         TradeOrder order = new TradeOrder();
         order.setItemId(item.getId());
         order.setBuyerId(buyerId);
@@ -122,7 +136,7 @@ public class OrderService {
         order.setStatus("WAITING_MEET");
         orderMapper.insert(order);
 
-        // 8. 买家支出流水
+        // 9. 买家支出流水
         WalletLog paymentLog = new WalletLog();
         paymentLog.setUserId(buyerId);
         paymentLog.setType("PAYMENT");
@@ -132,12 +146,11 @@ public class OrderService {
         paymentLog.setRemark("购买商品：" + item.getTitle());
         walletLogMapper.insert(paymentLog);
 
-        // 9. 商品标记交易中
+        // 10. 商品标记交易中
         item.setStatus("PENDING");
         itemMapper.updateById(item);
 
-        // 10. 获取卖家昵称作为对的显示方
-        SysUser seller = sysUserMapper.selectById(item.getPublisherId());
+        // 11. 获取卖家昵称作为对的显示方
         String sellerNickname = seller != null ? seller.getNickname() : null;
 
         log.info("订单创建成功 orderId={} buyer={} seller={} price={}",
@@ -167,14 +180,18 @@ public class OrderService {
         }
 
         // 2. 原子更新订单状态 —— 只有 WAITING_MEET → COMPLETED 才生效
+        LocalDateTime completedAt = LocalDateTime.now();
         LambdaUpdateWrapper<TradeOrder> completeWrapper = new LambdaUpdateWrapper<>();
         completeWrapper.set(TradeOrder::getStatus, "COMPLETED")
-                       .set(TradeOrder::getCompletedAt, LocalDateTime.now())
+                       .set(TradeOrder::getCompletedAt, completedAt)
                        .eq(TradeOrder::getId, orderId)
                        .eq(TradeOrder::getStatus, "WAITING_MEET");
         if (orderMapper.update(null, completeWrapper) == 0) {
             throw new BusinessException(ResultCode.ORDER_STATUS_ERROR);
         }
+        // 数据库使用原子 UPDATE，返回对象也同步成新状态，避免 API 响应仍显示 WAITING_MEET。
+        order.setStatus("COMPLETED");
+        order.setCompletedAt(completedAt);
 
         BigDecimal price = order.getPrice();
 
@@ -238,14 +255,17 @@ public class OrderService {
         BigDecimal price = order.getPrice();
 
         // 2. 原子更新订单状态 —— 只有 WAITING_MEET → CANCELLED 才生效
+        LocalDateTime cancelledAt = LocalDateTime.now();
         LambdaUpdateWrapper<TradeOrder> cancelWrapper = new LambdaUpdateWrapper<>();
         cancelWrapper.set(TradeOrder::getStatus, "CANCELLED")
-                     .set(TradeOrder::getCancelledAt, LocalDateTime.now())
+                     .set(TradeOrder::getCancelledAt, cancelledAt)
                      .eq(TradeOrder::getId, orderId)
                      .eq(TradeOrder::getStatus, "WAITING_MEET");
         if (orderMapper.update(null, cancelWrapper) == 0) {
             throw new BusinessException(ResultCode.ORDER_STATUS_ERROR);
         }
+        order.setStatus("CANCELLED");
+        order.setCancelledAt(cancelledAt);
 
         // 3. 买家退款（原子加余额）
         LambdaUpdateWrapper<SysUser> refund = new LambdaUpdateWrapper<>();
@@ -298,7 +318,14 @@ public class OrderService {
         return result.convert(order -> {
             Item item = itemMapper.selectById(order.getItemId());
             SysUser seller = sysUserMapper.selectById(order.getSellerId());
-            return toVO(order, item, seller != null ? seller.getNickname() : null, null);
+            OrderVO vo = toVO(order, item, seller != null ? seller.getNickname() : null, null);
+            // 仅已完成订单需要评价入口：查一次是否已评，供前端控制按钮显隐
+            if ("COMPLETED".equals(order.getStatus())) {
+                Long reviewed = reviewMapper.selectCount(new LambdaQueryWrapper<TradeReview>()
+                        .eq(TradeReview::getOrderId, order.getId()));
+                vo.setReviewed(reviewed != null && reviewed > 0);
+            }
+            return vo;
         });
     }
 

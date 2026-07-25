@@ -15,6 +15,9 @@
                   <LevelBadge :level="user.level" show-title />
                 </div>
                 <div class="muted">学号：{{ user.studentId }}</div>
+                <div class="school-line">
+                  <span class="muted">🏫 {{ user.schoolName || '未选择学校' }}</span>
+                </div>
                 <div class="muted">注册于 {{ formatDate(user.createdAt) }}</div>
               </div>
             </div>
@@ -73,6 +76,12 @@
             </template>
             <p v-else class="muted empty-tip">还没有经验记录，完成一笔交易即可获得 +50 EXP</p>
           </section>
+
+          <section class="card panel">
+            <h3>信誉雷达</h3>
+            <ReputationRadar v-if="reputation" :reputation="reputation" />
+            <p v-else class="muted empty-tip">信誉数据加载中…</p>
+          </section>
         </div>
 
         <!-- 右：资料编辑 + 账号安全 -->
@@ -85,8 +94,37 @@
                 <input id="p-nick" v-model.trim="editForm.nickname" class="input" type="text" maxlength="50" />
               </div>
               <div class="field">
+                <label for="p-school">所属学校</label>
+                <AppSelect
+                  id="p-school"
+                  v-model="editForm.schoolId"
+                  :options="schoolOptions"
+                  placeholder="请选择你当前就读的学校"
+                  aria-label="所属学校"
+                />
+              </div>
+              <div class="field">
+                <label for="p-email">学校邮箱 <span class="opt">选填</span></label>
+                <input id="p-email" v-model.trim="editForm.schoolEmail" class="input" type="email"
+                       :placeholder="schoolEmailPlaceholder" autocomplete="email" />
+              </div>
+              <div class="field">
                 <label for="p-phone">手机号</label>
                 <input id="p-phone" v-model.trim="editForm.phone" class="input" type="tel" placeholder="选填，仅用于接收通知" />
+              </div>
+              <div class="field-row">
+                <div class="field">
+                  <label for="p-college">学院</label>
+                  <input id="p-college" v-model.trim="editForm.college" class="input" type="text" maxlength="50" placeholder="如：计算机学院" />
+                </div>
+                <div class="field">
+                  <label for="p-grade">年级</label>
+                  <input id="p-grade" v-model.trim="editForm.grade" class="input" type="text" maxlength="10" placeholder="如：2024级" />
+                </div>
+              </div>
+              <div class="field">
+                <label for="p-dorm">宿舍楼</label>
+                <input id="p-dorm" v-model.trim="editForm.dormitory" class="input" type="text" maxlength="50" placeholder="如：紫荆公寓3号楼" />
               </div>
               <button class="btn btn--primary" type="submit" :disabled="saving">
                 {{ saving ? '保存中…' : '保存修改' }}
@@ -145,7 +183,18 @@
       </div>
 
       <!-- 注销确认弹窗（密码二次确认） -->
-      <el-dialog v-model="cancelVisible" title="注销账号" width="420px">
+      <el-dialog
+        v-model="cancelVisible"
+        class="app-dialog"
+        modal-class="app-modal"
+        title="注销账号"
+        width="420px"
+        append-to-body
+        align-center
+        :show-close="!cancelling"
+        :close-on-click-modal="!cancelling"
+        :close-on-press-escape="!cancelling"
+      >
         <p class="cancel-warn">
           ⚠️ 此操作不可自助恢复：注销后立即退出登录，无法再使用该账号交易。<br />
           钱包余额 <b>¥{{ user?.walletBalance ?? 0 }}</b> 将随账号冻结，请确认已处理完毕。
@@ -169,11 +218,16 @@
 import { ref, reactive, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
+import AppSelect from '@/components/common/AppSelect.vue'
 import DefaultLayout from '@/components/layout/DefaultLayout.vue'
 import LevelBadge from '@/components/common/LevelBadge.vue'
 import UserAvatar from '@/components/common/UserAvatar.vue'
 import PriceTag from '@/components/common/PriceTag.vue'
-import { updateProfile, getExpLog, changePassword, cancelAccount } from '@/api/auth'
+import ReputationRadar from '@/components/common/ReputationRadar.vue'
+import {
+  updateProfile, getExpLog, changePassword, cancelAccount,
+  getUserReputation, getSchools,
+} from '@/api/auth'
 import { useUserStore } from '@/stores/user'
 
 /**
@@ -184,7 +238,25 @@ const userStore = useUserStore()
 const user = computed(() => userStore.user)
 
 const saving = ref(false)
-const editForm = reactive({ nickname: '', phone: '' })
+const editForm = reactive({
+  nickname: '', phone: '', schoolId: null, schoolEmail: '',
+  college: '', grade: '', dormitory: '',
+})
+const schools = ref([])
+const schoolOptions = computed(() =>
+  schools.value.map((school) => ({ label: school.name, value: school.id }))
+)
+const selectedSchool = computed(() =>
+  schools.value.find((school) => school.id === editForm.schoolId) || null
+)
+const schoolEmailPlaceholder = computed(() =>
+  selectedSchool.value?.emailDomain
+    ? `学号${selectedSchool.value.emailDomain}`
+    : '选择学校后填写对应学校邮箱'
+)
+
+// 信誉雷达（A6）
+const reputation = ref(null)
 
 const expLogs = ref([])
 const expPage = ref(1)
@@ -211,15 +283,42 @@ async function handleSave() {
     ElMessage.warning('昵称不能为空')
     return
   }
+  if (!editForm.schoolId) {
+    ElMessage.warning('请选择所属学校')
+    return
+  }
+  const email = editForm.schoolEmail.trim().toLowerCase()
+  if (email && !/^[^@\s]+@[^@\s]+$/.test(email)) {
+    ElMessage.warning('学校邮箱格式不正确')
+    return
+  }
+  const domain = selectedSchool.value?.emailDomain?.trim().toLowerCase()
+  if (email && domain && !email.endsWith(domain)) {
+    ElMessage.warning(`学校邮箱须使用 ${domain} 后缀`)
+    return
+  }
   saving.value = true
   try {
     await updateProfile({ ...editForm })
     ElMessage.success('保存成功')
-    await userStore.fetchProfile()
+    const profile = await userStore.fetchProfile()
+    fillEditForm(profile)
   } catch (e) {
     // 提示由 request.js 统一处理
   } finally {
     saving.value = false
+  }
+}
+
+// —— 信誉雷达（A6）——
+async function fetchReputation() {
+  const uid = user.value?.id
+  if (!uid) return
+  try {
+    const res = await getUserReputation(uid)
+    reputation.value = res.data
+  } catch (e) {
+    // 忽略，页面其余部分可用
   }
 }
 
@@ -285,13 +384,28 @@ async function handleCancelAccount() {
   } catch (e) { /* 提示由 request.js 处理 */ } finally { cancelling.value = false }
 }
 
-onMounted(async () => {
-  const profile = await userStore.fetchProfile()
+function fillEditForm(profile) {
   if (profile) {
     editForm.nickname = profile.nickname
     editForm.phone = profile.phone || ''
+    editForm.schoolId = profile.schoolId ?? null
+    editForm.schoolEmail = profile.schoolEmail || ''
+    editForm.college = profile.college || ''
+    editForm.grade = profile.grade || ''
+    editForm.dormitory = profile.dormitory || ''
   }
+}
+
+onMounted(async () => {
+  const [profile] = await Promise.all([
+    userStore.fetchProfile(),
+    getSchools()
+      .then((res) => { schools.value = res.data || [] })
+      .catch(() => { schools.value = [] }),
+  ])
+  fillEditForm(profile)
   fetchExpLogs()
+  fetchReputation()
 })
 </script>
 
@@ -393,6 +507,15 @@ onMounted(async () => {
   background: var(--paper-deep);
 }
 .danger-text { color: var(--red); }
+
+/* —— 学校归属 —— */
+.school-line { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.field label .opt { color: var(--ink-soft); font-weight: 600; font-size: 12px; margin-left: 6px; }
+
+.field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+@media (max-width: 480px) {
+  .field-row { grid-template-columns: 1fr; gap: 0; }
+}
 .cancel-warn {
   font-size: 13.5px;
   line-height: 1.8;

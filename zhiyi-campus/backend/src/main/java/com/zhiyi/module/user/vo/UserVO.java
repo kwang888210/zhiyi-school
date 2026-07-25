@@ -28,8 +28,21 @@ public class UserVO {
     private Integer nextLevelExp;
     private BigDecimal walletBalance;
     private LocalDateTime createdAt;
+    // ---- 模块一创新功能：学校归属 + 学校邮箱 + 信任标签 ----
+    private Long schoolId;
+    /** 学校名称（由 Service 关联 school 表填充；仅 schoolId 已知时可为 null） */
+    private String schoolName;
+    private String schoolEmail;
+    private String college;
+    private String grade;
+    private String dormitory;
 
     public static UserVO from(SysUser u) {
+        return from(u, null);
+    }
+
+    /** 带学校名称的构建（schoolName 由调用方从 school 表关联查得） */
+    public static UserVO from(SysUser u, String schoolName) {
         UserVO vo = new UserVO();
         vo.setId(u.getId());
         vo.setStudentId(u.getStudentId());
@@ -45,6 +58,12 @@ public class UserVO {
         vo.setNextLevelExp(LevelRule.nextLevelExp(u.getLevel()));
         vo.setWalletBalance(u.getWalletBalance());
         vo.setCreatedAt(u.getCreatedAt());
+        vo.setSchoolId(u.getSchoolId());
+        vo.setSchoolName(schoolName);
+        vo.setSchoolEmail(u.getSchoolEmail());
+        vo.setCollege(u.getCollege());
+        vo.setGrade(u.getGrade());
+        vo.setDormitory(u.getDormitory());
         return vo;
     }
 }

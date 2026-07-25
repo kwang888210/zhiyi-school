@@ -26,6 +26,7 @@ public class JwtInterceptor implements HandlerInterceptor {
 
     private static final Pattern PUBLIC_ITEM_DETAIL = Pattern.compile("^/api/item/\\d+$");
     private static final Pattern PUBLIC_USER_CARD = Pattern.compile("^/api/user/\\d+/card$");
+    private static final Pattern PUBLIC_USER_REPUTATION = Pattern.compile("^/api/user/\\d+/reputation$");
 
     private final JwtUtils jwtUtils;
     private final UserStateCache userStateCache;
@@ -106,6 +107,7 @@ public class JwtInterceptor implements HandlerInterceptor {
         String contextPath = request.getContextPath();
         String path = contextPath.isEmpty() ? requestUri : requestUri.substring(contextPath.length());
         return PUBLIC_ITEM_DETAIL.matcher(path).matches()
-                || PUBLIC_USER_CARD.matcher(path).matches();
+                || PUBLIC_USER_CARD.matcher(path).matches()
+                || PUBLIC_USER_REPUTATION.matcher(path).matches();
     }
 }

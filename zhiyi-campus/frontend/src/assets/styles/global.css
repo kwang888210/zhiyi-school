@@ -199,18 +199,18 @@ button { font-family: inherit; }
 }
 .field label .req { color: var(--primary); margin-left: 2px; }
 .field .hint { font-size: 12px; color: var(--ink-soft); margin-top: 5px; }
-.input, .select, .textarea {
+.input, .textarea {
   width: 100%; padding: 11px 14px; font-size: 15px; font-family: inherit;
   background: var(--white); color: var(--ink);
   border: var(--bw) solid var(--ink); border-radius: var(--r-s);
   transition: box-shadow .2s;
 }
-.input:focus, .select:focus, .textarea:focus {
+.input:focus, .textarea:focus {
   outline: none; box-shadow: var(--shadow-s);
 }
 .input::placeholder, .textarea::placeholder { color: #B3A893; }
 .textarea { resize: vertical; min-height: 120px; }
-.select { appearance: none; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%2326221C' stroke-width='2.5'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 12px center; padding-right: 40px; cursor: pointer; }
+/* 下拉选择统一使用 common/AppSelect.vue，避免浏览器原生选项面板破坏视觉一致性。 */
 
 .error-msg { color: var(--red); font-size: 13px; font-weight: 500; margin-top: 5px; display: flex; align-items: center; gap: 4px; }
 

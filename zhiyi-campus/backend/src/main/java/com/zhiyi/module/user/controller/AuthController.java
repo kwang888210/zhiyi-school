@@ -58,4 +58,5 @@ public class AuthController {
         authService.resetPassword(dto);
         return Result.ok("密码重置成功，请重新登录", null);
     }
+
 }

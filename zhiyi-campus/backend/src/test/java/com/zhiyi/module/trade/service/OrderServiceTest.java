@@ -1,6 +1,8 @@
 package com.zhiyi.module.trade.service;
 
+import com.baomidou.mybatisplus.core.MybatisConfiguration;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
+import com.baomidou.mybatisplus.core.metadata.TableInfoHelper;
 import com.zhiyi.common.BusinessException;
 import com.zhiyi.module.item.entity.Item;
 import com.zhiyi.module.item.mapper.ItemMapper;
@@ -8,11 +10,14 @@ import com.zhiyi.module.trade.dto.CreateOrderDTO;
 import com.zhiyi.module.trade.entity.TradeOrder;
 import com.zhiyi.module.trade.entity.WalletLog;
 import com.zhiyi.module.trade.mapper.TradeOrderMapper;
+import com.zhiyi.module.trade.mapper.TradeReviewMapper;
 import com.zhiyi.module.trade.mapper.WalletLogMapper;
 import com.zhiyi.module.trade.vo.OrderVO;
 import com.zhiyi.module.user.entity.SysUser;
 import com.zhiyi.module.user.mapper.SysUserMapper;
 import com.zhiyi.module.user.service.UserGrowthService;
+import org.apache.ibatis.builder.MapperBuilderAssistant;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -38,6 +43,7 @@ class OrderServiceTest {
     @Mock private SysUserMapper sysUserMapper;
     @Mock private ItemMapper itemMapper;
     @Mock private TradeOrderMapper orderMapper;
+    @Mock private TradeReviewMapper reviewMapper;
     @Mock private WalletLogMapper walletLogMapper;
     @Mock private UserGrowthService growthService;
 
@@ -48,10 +54,23 @@ class OrderServiceTest {
     private static final Long ITEM_ID = 100L;
     private static final BigDecimal PRICE = new BigDecimal("99.00");
 
+    @BeforeAll
+    static void initializeMyBatisMetadata() {
+        initializeTableInfo(TradeOrder.class, "com.zhiyi.module.trade.mapper.TradeOrderMapper");
+        initializeTableInfo(SysUser.class, "com.zhiyi.module.user.mapper.SysUserMapper");
+        initializeTableInfo(Item.class, "com.zhiyi.module.item.mapper.ItemMapper");
+    }
+
+    private static void initializeTableInfo(Class<?> entityType, String namespace) {
+        MapperBuilderAssistant assistant = new MapperBuilderAssistant(new MybatisConfiguration(), "test");
+        assistant.setCurrentNamespace(namespace);
+        TableInfoHelper.initTableInfo(assistant, entityType);
+    }
+
     @BeforeEach
     void setUp() {
         orderService = new OrderService(sysUserMapper, itemMapper,
-                orderMapper, walletLogMapper, growthService);
+                orderMapper, reviewMapper, walletLogMapper, growthService);
     }
 
     /** 构造一个在售的 SELL 商品 */
@@ -62,6 +81,7 @@ class OrderServiceTest {
         item.setStatus("ON_SALE");
         item.setPrice(PRICE);
         item.setPublisherId(SELLER_ID);
+        item.setSchoolId(1L);
         item.setTitle("测试商品");
         return item;
     }
@@ -71,6 +91,7 @@ class OrderServiceTest {
         SysUser user = new SysUser();
         user.setId(BUYER_ID);
         user.setNickname("买家小王");
+        user.setSchoolId(1L);
         user.setWalletBalance(balance);
         return user;
     }
@@ -80,6 +101,7 @@ class OrderServiceTest {
         SysUser seller = new SysUser();
         seller.setId(SELLER_ID);
         seller.setNickname("卖家老张");
+        seller.setSchoolId(1L);
         seller.setWalletBalance(BigDecimal.ZERO);
         return seller;
     }
@@ -193,6 +215,44 @@ class OrderServiceTest {
         }
 
         @Test
+        void shouldRejectCrossSchoolBuyer() {
+            Item item = onSaleItem();
+            item.setSchoolId(2L);
+            SysUser b = buyer(new BigDecimal("200.00"));
+            CreateOrderDTO dto = new CreateOrderDTO();
+            dto.setItemId(ITEM_ID);
+
+            when(itemMapper.selectById(ITEM_ID)).thenReturn(item);
+            when(orderMapper.selectCount(any())).thenReturn(0L);
+            when(sysUserMapper.selectById(BUYER_ID)).thenReturn(b);
+
+            BusinessException error = assertThrows(BusinessException.class,
+                    () -> orderService.createOrder(BUYER_ID, dto));
+            assertEquals(403, error.getCode());
+            verify(sysUserMapper, never()).update(nullable(SysUser.class), any());
+        }
+
+        @Test
+        void shouldRejectSellerWhoMovedToAnotherSchool() {
+            Item item = onSaleItem();
+            SysUser b = buyer(new BigDecimal("200.00"));
+            SysUser s = seller();
+            s.setSchoolId(2L);
+            CreateOrderDTO dto = new CreateOrderDTO();
+            dto.setItemId(ITEM_ID);
+
+            when(itemMapper.selectById(ITEM_ID)).thenReturn(item);
+            when(orderMapper.selectCount(any())).thenReturn(0L);
+            when(sysUserMapper.selectById(BUYER_ID)).thenReturn(b);
+            when(sysUserMapper.selectById(SELLER_ID)).thenReturn(s);
+
+            BusinessException error = assertThrows(BusinessException.class,
+                    () -> orderService.createOrder(BUYER_ID, dto));
+            assertEquals(403, error.getCode());
+            verify(sysUserMapper, never()).update(nullable(SysUser.class), any());
+        }
+
+        @Test
         void shouldRejectWhenDeductionFails() {
             Item item = onSaleItem();
             SysUser b = buyer(new BigDecimal("200.00"));
@@ -202,6 +262,7 @@ class OrderServiceTest {
             when(itemMapper.selectById(ITEM_ID)).thenReturn(item);
             when(orderMapper.selectCount(any())).thenReturn(0L);
             when(sysUserMapper.selectById(BUYER_ID)).thenReturn(b);
+            when(sysUserMapper.selectById(SELLER_ID)).thenReturn(seller());
             when(sysUserMapper.update(nullable(SysUser.class), any())).thenReturn(0); // 扣款失败
 
             assertThrows(BusinessException.class,
@@ -242,6 +303,8 @@ class OrderServiceTest {
             OrderVO vo = orderService.confirmReceipt(1L, BUYER_ID);
 
             assertNotNull(vo);
+            assertEquals("COMPLETED", vo.getStatus());
+            assertNotNull(vo.getCompletedAt());
             assertEquals(s.getNickname(), vo.getPeerNickname());
 
             // 卖家收入流水
@@ -309,6 +372,8 @@ class OrderServiceTest {
             OrderVO vo = orderService.cancelOrder(1L, BUYER_ID);
 
             assertNotNull(vo);
+            assertEquals("CANCELLED", vo.getStatus());
+            assertNotNull(vo.getCancelledAt());
             assertEquals(s.getNickname(), vo.getPeerNickname());
 
             // 退款流水
