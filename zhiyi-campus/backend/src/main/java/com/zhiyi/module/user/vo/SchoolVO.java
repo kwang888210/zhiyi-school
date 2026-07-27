@@ -15,8 +15,10 @@ public class SchoolVO {
     private String code;
     /** 邮箱后缀（前端提示及提交前校验用） */
     private String emailDomain;
+    /** 状态：ACTIVE / DISABLED */
+    private String status;
 
     public static SchoolVO from(School s) {
-        return new SchoolVO(s.getId(), s.getName(), s.getCode(), s.getEmailDomain());
+        return new SchoolVO(s.getId(), s.getName(), s.getCode(), s.getEmailDomain(), s.getStatus());
     }
 }

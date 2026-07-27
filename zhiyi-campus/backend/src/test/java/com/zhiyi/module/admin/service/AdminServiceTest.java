@@ -170,13 +170,14 @@ class AdminServiceTest {
         @Mock private SysUserMapper sysUserMapper;
         @Mock private ItemMapper itemMapper;
         @Mock private BanService banService;
+        @Mock private ViolationLogMapper violationLogMapper;
 
         private AdminViolationService service;
 
         @BeforeEach
         void setUp() {
             service = new AdminViolationService(
-                    violationReportMapper, sysUserMapper, itemMapper, banService);
+                    violationReportMapper, sysUserMapper, itemMapper, banService, violationLogMapper);
         }
 
         @Test

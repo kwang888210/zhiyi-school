@@ -3,8 +3,10 @@ package com.zhiyi.module.admin.controller;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.zhiyi.common.Result;
 import com.zhiyi.common.annotation.RoleRequired;
+import com.zhiyi.module.admin.service.AdminLineageService;
 import com.zhiyi.module.admin.service.AdminManageService;
 import com.zhiyi.module.admin.vo.AdminItemVO;
+import com.zhiyi.module.admin.vo.ItemLineageVO;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.constraints.NotNull;
 import lombok.RequiredArgsConstructor;
@@ -24,6 +26,7 @@ import org.springframework.web.bind.annotation.*;
 public class AdminManageController {
 
     private final AdminManageService manageService;
+    private final AdminLineageService lineageService;
 
     /**
      * 管理员商品检索（4.7 强制下架前选择商品用）
@@ -59,6 +62,14 @@ public class AdminManageController {
         Long adminId = (Long) request.getAttribute("userId");
         manageService.resetPassword(body.userId(), adminId);
         return Result.ok("密码已重置为 123456");
+    }
+
+    /**
+     * 商品传承链（D3）
+     */
+    @GetMapping("/item/{id}/lineage")
+    public Result<ItemLineageVO> lineage(@PathVariable Long id) {
+        return Result.ok(lineageService.getLineage(id));
     }
 
     /**

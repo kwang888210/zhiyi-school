@@ -2,9 +2,9 @@ import request from '@/utils/request'
 
 /** 超管控制台接口（D 负责） */
 
-/** 数据大盘 */
-export function getDashboard() {
-  return request.get('/admin/dashboard')
+/** 数据大盘（D2：支持 schoolId 切换学校视角） */
+export function getDashboard(schoolId) {
+  return request.get('/admin/dashboard', { params: schoolId ? { schoolId } : {} })
 }
 
 /** 违规审核列表 */
@@ -32,6 +32,11 @@ export function banUser(data) {
   return request.post('/admin/ban-user', data)
 }
 
+/** 用户处罚评分统计（D4） */
+export function getPenaltyStats(userId) {
+  return request.get('/admin/penalty-stats', { params: { userId } })
+}
+
 /** 解封用户 */
 export function unbanUser(data) {
   return request.post('/admin/unban-user', data)
@@ -40,6 +45,16 @@ export function unbanUser(data) {
 /** 管理员商品检索（4.7 强制下架前选择商品用） */
 export function searchAdminItems(params) {
   return request.get('/admin/items', { params })
+}
+
+/** 交易热力图（D5） */
+export function getTradeHeatmap(schoolId) {
+  return request.get('/admin/trade-heatmap', { params: schoolId ? { schoolId } : {} })
+}
+
+/** 商品传承链（D3） */
+export function getItemLineage(itemId) {
+  return request.get(`/admin/item/${itemId}/lineage`)
 }
 
 /** 强制下架商品 */
@@ -67,6 +82,19 @@ export function sendAdminChatMessage(data) {
 
 export function getAdminUnreadMessages(params) {
   return request.get('/admin/chat/unread', { params })
+}
+
+/** 学校管理（D1） */
+export function getSchools() {
+  return request.get('/admin/schools')
+}
+
+export function createSchool(data) {
+  return request.post('/admin/schools', data)
+}
+
+export function updateSchool(id, data) {
+  return request.put(`/admin/schools/${id}`, data)
 }
 
 /** 分类管理 */

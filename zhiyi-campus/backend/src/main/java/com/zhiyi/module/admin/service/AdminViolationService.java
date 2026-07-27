@@ -6,8 +6,11 @@ import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.zhiyi.common.BusinessException;
 import com.zhiyi.common.ResultCode;
 import com.zhiyi.module.admin.dto.ConfirmViolationDTO;
+import com.zhiyi.module.admin.entity.ViolationLog;
 import com.zhiyi.module.admin.entity.ViolationReport;
+import com.zhiyi.module.admin.mapper.ViolationLogMapper;
 import com.zhiyi.module.admin.mapper.ViolationReportMapper;
+import com.zhiyi.module.admin.vo.PenaltyStatsVO;
 import com.zhiyi.module.admin.vo.ViolationVO;
 import com.zhiyi.module.item.entity.Item;
 import com.zhiyi.module.item.mapper.ItemMapper;
@@ -40,6 +43,7 @@ public class AdminViolationService {
     private final SysUserMapper sysUserMapper;
     private final ItemMapper itemMapper;
     private final BanService banService;
+    private final ViolationLogMapper violationLogMapper;
 
     /**
      * 分页查询违规记录列表
@@ -187,6 +191,43 @@ public class AdminViolationService {
             SysUser handler = handlerMap.get(r.getHandlerId());
             vo.setHandlerName(handler != null ? handler.getNickname() : null);
         }
+
+        return vo;
+    }
+
+    /**
+     * 用户处罚评分统计（D4：评价联动）
+     *
+     * 核心逻辑：CONFIRMED 的违规记录 = 有效处罚，DISMISSED = 已恢复。
+     * 供 A6 信誉雷达调用，汇总违规记录对信誉的负面影响。
+     */
+    public PenaltyStatsVO getPenaltyStats(Long userId) {
+        PenaltyStatsVO vo = new PenaltyStatsVO();
+        vo.setUserId(userId);
+
+        // CONFIRMED 违规 = 有效处罚
+        long confirmedCount = violationReportMapper.selectCount(
+                new LambdaQueryWrapper<ViolationReport>()
+                        .eq(ViolationReport::getUserId, userId)
+                        .eq(ViolationReport::getStatus, "CONFIRMED"));
+        vo.setConfirmedViolations(confirmedCount);
+
+        // 处罚日志中的警告和封禁次数
+        long warningCount = violationLogMapper.selectCount(
+                new LambdaQueryWrapper<ViolationLog>()
+                        .eq(ViolationLog::getUserId, userId)
+                        .eq(ViolationLog::getType, "WARNING"));
+        vo.setWarningCount(warningCount);
+
+        long banCount = violationLogMapper.selectCount(
+                new LambdaQueryWrapper<ViolationLog>()
+                        .eq(ViolationLog::getUserId, userId)
+                        .in(ViolationLog::getType, "BAN_TEMP", "BAN_PERM"));
+        vo.setBanCount(banCount);
+
+        // 处罚影响分：每次警告 -5，每次封禁 -15，最低 0
+        int penalty = (int) (warningCount * 5 + banCount * 15);
+        vo.setPenaltyScore(Math.max(0, 100 - penalty));
 
         return vo;
     }
