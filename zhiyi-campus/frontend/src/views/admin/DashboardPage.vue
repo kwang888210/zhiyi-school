@@ -13,6 +13,21 @@
         <router-link to="/admin/violations" class="nav-tab">⚖️ 违规审核</router-link>
         <router-link to="/admin/chat" class="nav-tab">💬 客服收件箱</router-link>
         <router-link to="/admin/manage" class="nav-tab">🔧 内容管理</router-link>
+        <router-link to="/admin/schools" class="nav-tab">🏫 学校管理</router-link>
+      </div>
+
+      <!-- 学校切换（D2：多校大盘） -->
+      <div class="school-bar" v-if="schools.length > 0">
+        <span class="school-bar__label muted">🏫 学校视角：</span>
+        <button
+          v-for="s in schoolOptions"
+          :key="s.value"
+          class="school-chip"
+          :class="{ active: selectedSchoolId === s.value }"
+          @click="switchSchool(s.value)"
+        >
+          {{ s.label }}
+        </button>
       </div>
 
       <!-- 加载 / 错误 -->
@@ -184,6 +199,31 @@
           </div>
         </div>
 
+        <!-- 交易热力图（D5） -->
+        <div class="section">
+          <h3 class="section-title">📍 交易热力图</h3>
+          <div v-if="heatmapData.length === 0" class="card card--flat state-card">
+            <span class="muted">暂无交易地点数据</span>
+          </div>
+          <div v-else class="heatmap-grid card">
+            <div
+              v-for="(h, i) in heatmapData"
+              :key="i"
+              class="heatmap-bar-row"
+            >
+              <span class="heatmap-loc">{{ h.location }}</span>
+              <div class="heatmap-bar-wrap">
+                <div
+                  class="heatmap-bar"
+                  :style="{ width: heatmapWidth(h.count) + '%' }"
+                  :class="heatColor(i)"
+                ></div>
+              </div>
+              <span class="heatmap-count">{{ h.count }} 笔</span>
+            </div>
+          </div>
+        </div>
+
         <!-- 最近违规 -->
         <div class="section">
           <h3 class="section-title">最近违规待审核</h3>
@@ -224,8 +264,28 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import DefaultLayout from '@/components/layout/DefaultLayout.vue'
-import { getDashboard } from '@/api/admin'
+import { getDashboard, getSchools, getTradeHeatmap } from '@/api/admin'
 
+// ---- 学校选择（D2：多校大盘） ----
+const schools = ref([])
+const selectedSchoolId = ref(null)
+
+const schoolOptions = computed(() => {
+  const opts = [{ value: null, label: '🌐 全部学校' }]
+  schools.value.forEach(s => {
+    opts.push({ value: s.id, label: s.name })
+  })
+  return opts
+})
+
+async function loadSchools() {
+  try {
+    const res = await getSchools()
+    schools.value = res.data || []
+  } catch { /* ignore */ }
+}
+
+// ---- 大盘数据 ----
 const data = ref({
   totalUsers: 0,
   onSaleItems: 0,
@@ -238,11 +298,37 @@ const loading = ref(false)
 const loadError = ref(false)
 const hoveredIndex = ref(null)
 
+// ---- 热力图（D5） ----
+const heatmapData = ref([])
+const heatmapMax = computed(() => Math.max(1, ...heatmapData.value.map(h => h.count)))
+
+async function fetchHeatmap() {
+  try {
+    const res = await getTradeHeatmap(selectedSchoolId.value)
+    heatmapData.value = res.data || []
+  } catch { /* ignore */ }
+}
+
+function heatmapWidth(count) {
+  return Math.round((count / heatmapMax.value) * 100)
+}
+
+const HEAT_COLORS = ['heat--1', 'heat--2', 'heat--3', 'heat--4', 'heat--5']
+function heatColor(i) {
+  return HEAT_COLORS[i % HEAT_COLORS.length]
+}
+
+function switchSchool(schoolId) {
+  selectedSchoolId.value = schoolId
+  fetchDashboard()
+  fetchHeatmap()
+}
+
 async function fetchDashboard() {
   loading.value = true
   loadError.value = false
   try {
-    const res = await getDashboard()
+    const res = await getDashboard(selectedSchoolId.value)
     data.value = res.data
   } catch {
     loadError.value = true
@@ -312,7 +398,9 @@ const areaPoints = computed(() => {
 })
 
 onMounted(() => {
+  loadSchools()
   fetchDashboard()
+  fetchHeatmap()
 })
 
 // ---- 工具函数 ----
@@ -444,6 +532,60 @@ function violationBadge(type) {
 .stat-card--alert .stat-card__num {
   color: var(--red);
 }
+
+/* 学校切换栏（D2） */
+.school-bar {
+  display: flex; align-items: center; gap: 8px;
+  margin-bottom: 24px; flex-wrap: wrap;
+}
+.school-bar__label {
+  font-size: 14px; font-weight: 700;
+}
+.school-chip {
+  padding: 6px 16px; font-size: 13px; font-weight: 700;
+  border: var(--bw) solid var(--ink); border-radius: 999px;
+  background: var(--paper-deep); color: var(--ink);
+  cursor: pointer; transition: all .15s;
+}
+.school-chip:hover { background: var(--white); box-shadow: 2px 2px 0 var(--ink); }
+.school-chip.active {
+  background: var(--ink); color: var(--paper);
+}
+
+/* 热力图（D5） */
+.heatmap-grid {
+  padding: 20px 24px;
+}
+.heatmap-bar-row {
+  display: flex; align-items: center; gap: 12px;
+  padding: 8px 0;
+}
+.heatmap-bar-row:not(:last-child) {
+  border-bottom: 1px dashed rgba(38,34,28,.1);
+}
+.heatmap-loc {
+  width: 120px; flex-shrink: 0;
+  font-weight: 700; font-size: 14px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.heatmap-bar-wrap {
+  flex: 1; height: 22px;
+  background: var(--paper-deep);
+  border-radius: 4px; overflow: hidden;
+}
+.heatmap-bar {
+  height: 100%; border-radius: 4px;
+  min-width: 4px; transition: width .4s ease;
+}
+.heatmap-count {
+  width: 50px; flex-shrink: 0; text-align: right;
+  font-size: 13px; font-weight: 700; font-family: var(--font-display);
+}
+.heat--1 { background: var(--primary); }
+.heat--2 { background: #E8852E; }
+.heat--3 { background: var(--yellow); }
+.heat--4 { background: var(--green); }
+.heat--5 { background: var(--blue); }
 
 .state-card {
   padding: 28px 24px;

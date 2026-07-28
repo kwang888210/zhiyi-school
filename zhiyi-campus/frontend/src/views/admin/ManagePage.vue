@@ -11,6 +11,7 @@
         <router-link to="/admin/violations" class="nav-tab">⚖️ 违规审核</router-link>
         <router-link to="/admin/chat" class="nav-tab">💬 客服收件箱</router-link>
         <span class="nav-tab active">🔧 内容管理</span>
+        <router-link to="/admin/schools" class="nav-tab">🏫 学校管理</router-link>
       </div>
 
       <div class="tool-grid">
@@ -78,6 +79,13 @@
           </div>
 
           <div class="tool-card__actions">
+            <button
+              v-if="itemForm.selected"
+              class="btn btn--sm"
+              @click="showLineage(itemForm.selected)"
+            >
+              📜 传承链
+            </button>
             <button
               v-if="itemForm.selected"
               class="btn btn--sm btn--danger"
@@ -155,6 +163,44 @@
         </div>
       </div>
     </div>
+
+    <!-- ========== 传承链弹窗（D3） ========== -->
+    <div v-if="lineageDialog.visible" class="modal-overlay" @click.self="lineageDialog.visible = false">
+      <div class="modal-card card">
+        <h3 class="modal-title">📜 商品传承链</h3>
+        <p class="muted" style="margin-bottom:18px">{{ lineageDialog.data?.itemTitle }}</p>
+
+        <div v-if="lineageDialog.loading" class="muted" style="text-align:center;padding:20px">加载中...</div>
+        <div v-else-if="lineageDialog.data?.chain?.length" class="lineage-chain">
+          <div
+            v-for="(node, i) in lineageDialog.data.chain"
+            :key="i"
+            class="lineage-node"
+          >
+            <div class="lineage-node__dot" :class="node.role === 'PUBLISHER' ? 'dot-publisher' : 'dot-buyer'">
+              {{ node.role === 'PUBLISHER' ? '📌' : '🤝' }}
+            </div>
+            <div class="lineage-node__content">
+              <div class="lineage-node__name">
+                {{ node.nickname }}
+                <span class="badge" :class="node.role === 'PUBLISHER' ? 'badge--sell' : 'badge--buy'">
+                  {{ node.role === 'PUBLISHER' ? '发布者' : '买家' }}
+                </span>
+              </div>
+              <div class="lineage-node__meta muted">
+                <template v-if="node.price">¥{{ node.price }} · </template>
+                {{ formatTime(node.time) }}
+              </div>
+            </div>
+          </div>
+        </div>
+        <div v-else class="muted" style="text-align:center;padding:20px">暂无传承记录（商品尚未交易）</div>
+
+        <div class="modal-actions">
+          <button class="btn" @click="lineageDialog.visible = false">关闭</button>
+        </div>
+      </div>
+    </div>
   </DefaultLayout>
 </template>
 
@@ -163,7 +209,7 @@ import { reactive } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import AppSelect from '@/components/common/AppSelect.vue'
 import DefaultLayout from '@/components/layout/DefaultLayout.vue'
-import { forceOffShelf, resetUserPassword, searchUsers, searchAdminItems } from '@/api/admin'
+import { forceOffShelf, resetUserPassword, searchUsers, searchAdminItems, getItemLineage } from '@/api/admin'
 
 // ---- 强制下架 ----
 const STATUS_FILTER_OPTIONS = [
@@ -264,6 +310,27 @@ async function handleForceOffShelf() {
     itemForm.resultType = 'error'
   } finally {
     itemForm.submitting = false
+  }
+}
+
+// ---- 传承链（D3） ----
+const lineageDialog = reactive({
+  visible: false,
+  loading: false,
+  data: null,
+})
+
+async function showLineage(item) {
+  lineageDialog.visible = true
+  lineageDialog.loading = true
+  lineageDialog.data = null
+  try {
+    const res = await getItemLineage(item.id)
+    lineageDialog.data = res.data
+  } catch {
+    ElMessage.error('获取传承链失败')
+  } finally {
+    lineageDialog.loading = false
   }
 }
 
@@ -476,4 +543,51 @@ function avatarColor(id) {
 }
 .user-item__name { font-weight: 700; font-size: 14px; }
 .user-item__id { font-size: 12px; }
+
+/* 传承链（D3） */
+.lineage-chain {
+  display: flex; flex-direction: column;
+  padding-left: 20px; border-left: 3px dashed var(--ink);
+  margin-bottom: 10px;
+}
+.lineage-node {
+  display: flex; align-items: flex-start; gap: 14px;
+  padding: 12px 0; position: relative;
+}
+.lineage-node:not(:last-child) {
+  border-bottom: 1px dashed rgba(38,34,28,.12);
+}
+.lineage-node__dot {
+  width: 40px; height: 40px; border-radius: 50%;
+  border: var(--bw) solid var(--ink);
+  display: grid; place-items: center;
+  font-size: 18px; flex-shrink: 0;
+}
+.dot-publisher { background: var(--yellow); }
+.dot-buyer { background: var(--blue); color: #fff; }
+.lineage-node__name {
+  font-weight: 700; font-size: 15px;
+  display: flex; align-items: center; gap: 8px;
+}
+.lineage-node__meta {
+  font-size: 13px; margin-top: 2px;
+}
+
+/* 弹窗复用 */
+.modal-overlay {
+  position: fixed; inset: 0; z-index: var(--z-modal);
+  background: rgba(38,34,28,.45);
+  display: grid; place-items: center; padding: 20px;
+}
+.modal-card {
+  width: 100%; max-width: 480px; max-height: 90vh; overflow-y: auto;
+  padding: 28px;
+}
+.modal-title {
+  font-family: var(--font-display); font-size: 22px;
+  letter-spacing: .5px; margin-bottom: 8px;
+}
+.modal-actions {
+  display: flex; gap: 12px; justify-content: flex-end; margin-top: 16px;
+}
 </style>

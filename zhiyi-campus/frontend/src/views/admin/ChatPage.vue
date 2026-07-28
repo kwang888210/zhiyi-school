@@ -13,6 +13,7 @@
         <router-link to="/admin/violations" class="nav-tab">⚖️ 违规审核</router-link>
         <span class="nav-tab active">💬 客服收件箱</span>
         <router-link to="/admin/manage" class="nav-tab">🔧 内容管理</router-link>
+        <router-link to="/admin/schools" class="nav-tab">🏫 学校管理</router-link>
       </div>
 
       <!-- 主体：左右分栏 -->

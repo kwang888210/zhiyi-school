@@ -5,6 +5,7 @@ import com.zhiyi.common.Result;
 import com.zhiyi.common.annotation.RoleRequired;
 import com.zhiyi.module.admin.dto.ConfirmViolationDTO;
 import com.zhiyi.module.admin.service.AdminViolationService;
+import com.zhiyi.module.admin.vo.PenaltyStatsVO;
 import com.zhiyi.module.admin.vo.ViolationVO;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
@@ -48,6 +49,14 @@ public class AdminViolationController {
         Long adminId = (Long) request.getAttribute("userId");
         violationService.confirmViolation(id, dto, adminId);
         return Result.ok("违规已确认，处罚已生效");
+    }
+
+    /**
+     * 用户处罚评分统计（D4：评价联动）
+     */
+    @GetMapping("/penalty-stats")
+    public Result<PenaltyStatsVO> penaltyStats(@RequestParam Long userId) {
+        return Result.ok(violationService.getPenaltyStats(userId));
     }
 
     /**

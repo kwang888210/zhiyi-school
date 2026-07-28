@@ -144,6 +144,12 @@ const routes = [
     meta: { title: '内容管理', requireAuth: true, requireAdmin: true },
   },
   {
+    path: '/admin/schools',
+    name: 'AdminSchools',
+    component: () => import('@/views/admin/SchoolsPage.vue'),
+    meta: { title: '学校管理', requireAuth: true, requireAdmin: true },
+  },
+  {
     path: '/admin/categories',
     name: 'AdminCategories',
     component: () => import('@/views/admin/CategoriesPage.vue'),

@@ -4,6 +4,7 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.zhiyi.module.admin.entity.ViolationReport;
 import com.zhiyi.module.admin.mapper.ViolationReportMapper;
 import com.zhiyi.module.admin.vo.AdminDashboardVO;
+import com.zhiyi.module.admin.vo.TradeHeatmapVO;
 import com.zhiyi.module.item.entity.Item;
 import com.zhiyi.module.item.mapper.ItemMapper;
 import com.zhiyi.module.trade.entity.TradeOrder;
@@ -23,10 +24,10 @@ import java.util.Map;
 import java.util.stream.Collectors;
 
 /**
- * 超管数据大盘服务
+ * 超管数据大盘服务（D2：支持多校切换）
  *
- * 日期计算全部委托 MySQL（CURDATE / DATE / DATE_SUB），避免 Java JVM
- * 时区与 MySQL serverTimezone 不一致导致"今日"统计为 0。
+ * schoolId 为 null → 全局视角（不隔离）
+ * schoolId 非空   → 仅统计该校数据
  */
 @Slf4j
 @Service
@@ -40,38 +41,58 @@ public class AdminDashboardService {
 
     /**
      * 聚合大盘统计数据 + 近 7 日趋势 + 最近 5 条待审核违规
+     *
+     * @param schoolId 可选，指定学校视角；null = 全局
      */
-    public AdminDashboardVO getDashboard() {
+    public AdminDashboardVO getDashboard(Long schoolId) {
         AdminDashboardVO vo = new AdminDashboardVO();
 
-        // 1. 统计
-        vo.setTotalUsers(sysUserMapper.selectCount(null));
+        // 1. 用户总数（仅普通用户，排除管理员）
+        LambdaQueryWrapper<SysUser> userQ = new LambdaQueryWrapper<SysUser>()
+                .eq(SysUser::getRole, "USER");
+        if (schoolId != null) {
+            userQ.eq(SysUser::getSchoolId, schoolId);
+        }
+        vo.setTotalUsers(sysUserMapper.selectCount(userQ));
 
-        vo.setOnSaleItems(itemMapper.selectCount(
-                new LambdaQueryWrapper<Item>()
-                        .eq(Item::getStatus, "ON_SALE")
-                        .eq(Item::getIsDeleted, false)));
+        // 2. 在售商品数
+        LambdaQueryWrapper<Item> itemQ = new LambdaQueryWrapper<Item>()
+                .eq(Item::getStatus, "ON_SALE")
+                .eq(Item::getIsDeleted, false);
+        if (schoolId != null) {
+            itemQ.eq(Item::getSchoolId, schoolId);
+        }
+        vo.setOnSaleItems(itemMapper.selectCount(itemQ));
 
-        // 今日交易总额 —— 委托 MySQL CURDATE()，避免 JVM 时区偏差
-        LambdaQueryWrapper<TradeOrder> todayCompletedQ = new LambdaQueryWrapper<TradeOrder>()
+        // 3. 今日交易总额 —— 需关联 item 做学校过滤
+        LambdaQueryWrapper<TradeOrder> todayQ = new LambdaQueryWrapper<TradeOrder>()
                 .apply("status = 'COMPLETED' AND DATE(completed_at) = CURDATE()");
-        List<TradeOrder> todayOrders = orderMapper.selectList(todayCompletedQ);
+        if (schoolId != null) {
+            todayQ.apply("item_id IN (SELECT id FROM item WHERE school_id = {0})", schoolId);
+        }
+        List<TradeOrder> todayOrders = orderMapper.selectList(todayQ);
         BigDecimal todaySum = todayOrders.stream()
                 .map(TradeOrder::getPrice)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
         vo.setTodayTradeAmount(todaySum.setScale(2, RoundingMode.HALF_UP).toString());
-        log.info("今日交易额查询：status=COMPLETED, CURDATE()={}, 订单数={}, 总额={}",
-                LocalDate.now(), todayOrders.size(), vo.getTodayTradeAmount());
+        log.info("今日交易额：schoolId={}, 订单数={}, 总额={}", schoolId, todayOrders.size(), vo.getTodayTradeAmount());
 
+        // 4. 待审核违规数 —— 需关联 sys_user 做学校过滤
         LambdaQueryWrapper<ViolationReport> pendingQ = new LambdaQueryWrapper<ViolationReport>()
                 .eq(ViolationReport::getStatus, "PENDING");
+        if (schoolId != null) {
+            pendingQ.apply("user_id IN (SELECT id FROM sys_user WHERE school_id = {0})", schoolId);
+        }
         vo.setPendingViolations(violationReportMapper.selectCount(pendingQ));
 
-        // 2. 最近 5 条待审核违规
+        // 5. 最近 5 条待审核违规
         LambdaQueryWrapper<ViolationReport> recentQ = new LambdaQueryWrapper<ViolationReport>()
                 .eq(ViolationReport::getStatus, "PENDING")
                 .orderByDesc(ViolationReport::getCreatedAt)
                 .last("LIMIT 5");
+        if (schoolId != null) {
+            recentQ.apply("user_id IN (SELECT id FROM sys_user WHERE school_id = {0})", schoolId);
+        }
 
         List<ViolationReport> recent = violationReportMapper.selectList(recentQ);
         List<AdminDashboardVO.RecentViolation> rvList = new ArrayList<>();
@@ -99,26 +120,24 @@ public class AdminDashboardService {
         }
         vo.setRecentViolations(rvList);
 
-        // 3. 近 7 日交易趋势 —— 委托 MySQL DATE_SUB
-        List<AdminDashboardVO.TradeTrendPoint> trendPoints = computeTrend();
-        vo.setTrend(trendPoints);
+        // 6. 近 7 日交易趋势
+        vo.setTrend(computeTrend(schoolId));
 
         return vo;
     }
 
     /**
-     * 计算近 7 日交易趋势（委托 MySQL 做日期运算）。
-     *
-     * 先用 MySQL DATE_SUB 查出近 7 天所有已完成订单，
-     * 再在 Java 中按 DATE(completed_at) 分组后补齐无数据的日期。
+     * 计算近 7 日交易趋势，支持学校过滤
      */
-    private List<AdminDashboardVO.TradeTrendPoint> computeTrend() {
-        // 委托 MySQL 做日期过滤，消除 JVM 时区偏差
-        List<TradeOrder> completedOrders = orderMapper.selectList(
-                new LambdaQueryWrapper<TradeOrder>()
-                        .apply("status = 'COMPLETED' AND completed_at >= DATE_SUB(CURDATE(), INTERVAL 6 DAY)"));
+    private List<AdminDashboardVO.TradeTrendPoint> computeTrend(Long schoolId) {
+        LambdaQueryWrapper<TradeOrder> q = new LambdaQueryWrapper<TradeOrder>()
+                .apply("status = 'COMPLETED' AND completed_at >= DATE_SUB(CURDATE(), INTERVAL 6 DAY)");
+        if (schoolId != null) {
+            q.apply("item_id IN (SELECT id FROM item WHERE school_id = {0})", schoolId);
+        }
 
-        // 按日期分组（订单数 + 交易额）
+        List<TradeOrder> completedOrders = orderMapper.selectList(q);
+
         Map<LocalDate, Long> dayCount = new java.util.LinkedHashMap<>();
         Map<LocalDate, BigDecimal> dayAmount = new java.util.LinkedHashMap<>();
         for (TradeOrder o : completedOrders) {
@@ -128,7 +147,6 @@ public class AdminDashboardService {
             dayAmount.merge(d, o.getPrice(), BigDecimal::add);
         }
 
-        // 补齐 7 天
         LocalDate today = LocalDate.now();
         LocalDate start = today.minusDays(6);
         List<AdminDashboardVO.TradeTrendPoint> points = new ArrayList<>();
@@ -141,8 +159,41 @@ public class AdminDashboardService {
             points.add(p);
         }
 
-        log.info("近7日趋势：日期范围={} ~ {}, 完成订单数={}, 趋势点={}",
-                start, today, completedOrders.size(), points.size());
+        log.info("近7日趋势：schoolId={}, 完成订单数={}, 趋势点={}", schoolId, completedOrders.size(), points.size());
         return points;
+    }
+
+    /**
+     * 交易热力图（D5）：统计各 trade_location 的交易频次
+     *
+     * @param schoolId 可选，null = 全局
+     */
+    public List<TradeHeatmapVO> getTradeHeatmap(Long schoolId) {
+        // 查询所有有交易地点的商品，联表统计订单数
+        LambdaQueryWrapper<Item> itemQ = new LambdaQueryWrapper<Item>()
+                .isNotNull(Item::getTradeLocation)
+                .ne(Item::getTradeLocation, "");
+        if (schoolId != null) {
+            itemQ.eq(Item::getSchoolId, schoolId);
+        }
+
+        List<Item> items = itemMapper.selectList(itemQ);
+        if (items.isEmpty()) {
+            return java.util.List.of();
+        }
+
+        // 按地点分组统计
+        Map<String, Long> locationCount = new java.util.LinkedHashMap<>();
+        for (Item item : items) {
+            String loc = item.getTradeLocation().trim();
+            if (loc.isEmpty()) continue;
+            locationCount.merge(loc, 1L, Long::sum);
+        }
+
+        // 按次数降序排列
+        return locationCount.entrySet().stream()
+                .map(e -> new TradeHeatmapVO(e.getKey(), e.getValue()))
+                .sorted((a, b) -> Long.compare(b.getCount(), a.getCount()))
+                .toList();
     }
 }
