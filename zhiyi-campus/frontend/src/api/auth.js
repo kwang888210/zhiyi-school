@@ -16,8 +16,8 @@ export function login(data) {
   return request.post('/auth/login', data)
 }
 
-export function getSecurityQuestion(studentId) {
-  return request.get('/auth/security-question', { params: { studentId } })
+export function getSecurityQuestion(schoolId, studentId) {
+  return request.get('/auth/security-question', { params: { schoolId, studentId } })
 }
 
 export function getSecurityQuestions() {
@@ -50,7 +50,7 @@ export function getSellerDetail(userId) {
   return request.get(`/user/${userId}/seller-detail`)
 }
 
-// 伪熟人信任标签（A5）：登录用户视角看目标用户 → ["同学院","同级","同楼"]
+// 伪熟人信任标签（A5）：登录用户视角看目标用户 → ["同学院","同级","同校区","同楼"]
 export function getUserRelation(userId) {
   return request.get(`/user/${userId}/relation`)
 }

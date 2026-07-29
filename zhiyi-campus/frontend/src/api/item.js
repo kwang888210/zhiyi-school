@@ -14,6 +14,10 @@ export function getItemDetail(id) {
   return request.get(`/item/${id}`)
 }
 
+export function getItemLineage(id) {
+  return request.get(`/item/${id}/lineage`)
+}
+
 export function getCategories() {
   return request.get('/category/list')
 }

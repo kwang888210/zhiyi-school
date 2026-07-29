@@ -47,10 +47,15 @@ class MarketplaceServiceTest {
         MapperBuilderAssistant assistant = new MapperBuilderAssistant(new MybatisConfiguration(), "test");
         assistant.setCurrentNamespace("com.zhiyi.module.item.mapper.ItemMapper");
         TableInfoHelper.initTableInfo(assistant, Item.class);
+        TableInfoHelper.initTableInfo(assistant, SysUser.class);
     }
 
     @Test
     void ranksAiTagsByDistinctOnSaleItemFrequency() {
+        SysUser viewer = new SysUser();
+        viewer.setId(7L);
+        viewer.setSchoolId(2L);
+        when(userMapper.selectById(7L)).thenReturn(viewer);
         when(itemMapper.selectObjs(any())).thenReturn(List.of(
                 "[\"iPad\",\"student\",\"iPad\"]",
                 "[\"iPad\",\"student\"]",
@@ -59,12 +64,82 @@ class MarketplaceServiceTest {
         MarketplaceService service = new MarketplaceService(
                 itemMapper, categoryMapper, favoriteMapper, userMapper, new ObjectMapper());
 
-        var result = service.trendingAiTags(10);
+        var result = service.trendingAiTags(10, 7L);
 
         assertEquals(List.of("iPad", "student", "tablet"),
                 result.stream().map(tag -> tag.tag()).toList());
         assertEquals(List.of(3L, 2L, 1L),
                 result.stream().map(tag -> tag.count()).toList());
+    }
+
+    @Test
+    @SuppressWarnings({"rawtypes", "unchecked"})
+    void prioritizesSameBuildingThenSameCampusForSmartRecommendation() {
+        SysUser viewer = new SysUser();
+        viewer.setId(7L);
+        viewer.setSchoolId(2L);
+        viewer.setCampus("宝山 校区");
+        viewer.setDormitory("南区 13 号楼");
+        when(userMapper.selectById(7L)).thenReturn(viewer);
+
+        SysUser sameBuilding = new SysUser();
+        sameBuilding.setId(8L);
+        sameBuilding.setCampus("宝山校区");
+        sameBuilding.setDormitory("南区13号楼");
+        SysUser sameCampus = new SysUser();
+        sameCampus.setId(9L);
+        sameCampus.setCampus("宝山校区");
+        sameCampus.setDormitory("南区6号楼");
+        SysUser otherCampus = new SysUser();
+        otherCampus.setId(10L);
+        otherCampus.setCampus("嘉定校区");
+        otherCampus.setDormitory("南区13号楼");
+        when(userMapper.selectList(any())).thenReturn(List.of(sameBuilding, sameCampus, otherCampus));
+
+        Page<Item> emptyPage = new Page<>(1, 12, 0);
+        emptyPage.setRecords(List.of());
+        when(itemMapper.selectPage(any(Page.class), any(Wrapper.class))).thenReturn(emptyPage);
+
+        MarketplaceService service = new MarketplaceService(
+                itemMapper, categoryMapper, favoriteMapper, userMapper, new ObjectMapper());
+        service.listOnSaleItems(null, null, null, null,
+                "random", null, null, 1, 12, 7L);
+
+        ArgumentCaptor<Wrapper<Item>> wrapperCaptor = ArgumentCaptor.forClass(Wrapper.class);
+        verify(itemMapper).selectPage(any(Page.class), wrapperCaptor.capture());
+        String sql = wrapperCaptor.getValue().getSqlSegment();
+        assertTrue(sql.contains("publisher_id IN (8) THEN 0"));
+        assertTrue(sql.contains("publisher_id IN (9) THEN 1"));
+        assertTrue(sql.contains("RAND()"));
+    }
+
+    @Test
+    @SuppressWarnings({"rawtypes", "unchecked"})
+    void prioritizesSameCampusWhenViewerHasNoDormitory() {
+        SysUser viewer = new SysUser();
+        viewer.setId(7L);
+        viewer.setSchoolId(2L);
+        viewer.setCampus("延长校区");
+        when(userMapper.selectById(7L)).thenReturn(viewer);
+
+        SysUser sameCampus = new SysUser();
+        sameCampus.setId(9L);
+        sameCampus.setCampus("延长校区");
+        when(userMapper.selectList(any())).thenReturn(List.of(sameCampus));
+
+        Page<Item> emptyPage = new Page<>(1, 12, 0);
+        emptyPage.setRecords(List.of());
+        when(itemMapper.selectPage(any(Page.class), any(Wrapper.class))).thenReturn(emptyPage);
+
+        MarketplaceService service = new MarketplaceService(
+                itemMapper, categoryMapper, favoriteMapper, userMapper, new ObjectMapper());
+        service.listOnSaleItems(null, null, null, null,
+                "random", null, null, 1, 12, 7L);
+
+        ArgumentCaptor<Wrapper<Item>> wrapperCaptor = ArgumentCaptor.forClass(Wrapper.class);
+        verify(itemMapper).selectPage(any(Page.class), wrapperCaptor.capture());
+        String sql = wrapperCaptor.getValue().getSqlSegment();
+        assertTrue(sql.contains("publisher_id IN (9) THEN 1"));
     }
 
     @Test

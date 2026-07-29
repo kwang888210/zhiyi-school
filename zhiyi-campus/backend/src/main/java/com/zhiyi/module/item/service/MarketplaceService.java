@@ -67,24 +67,14 @@ public class MarketplaceService {
      * 按商品大类聚合 AI 标签，用于前端"精细筛选"分组标签云。
      * 返回结构：[{categoryId, categoryName, tags: [{name, count}]}]
      */
-    public List<Map<String, Object>> getAllTags() {
-        return getAllTags(null);
-    }
-
     public List<Map<String, Object>> getAllTags(Long currentUserId) {
-        Long schoolId = marketplaceSchoolId(currentUserId);
-        // 加载大类名称映射
-        Map<Long, String> catNames = categoryMapper.selectList(
-                new LambdaQueryWrapper<Category>().select(Category::getId, Category::getName))
-                .stream().collect(Collectors.toMap(Category::getId, Category::getName));
+        Long schoolId = requireUserSchoolId(currentUserId);
 
         // 查出所有在售商品（只需 category_id + ai_tags）
         LambdaQueryWrapper<Item> itemWrapper = new LambdaQueryWrapper<Item>()
                 .eq(Item::getStatus, "ON_SALE")
+                .eq(Item::getSchoolId, schoolId)
                 .select(Item::getCategoryId, Item::getAiTags);
-        if (schoolId != null) {
-            itemWrapper.eq(Item::getSchoolId, schoolId);
-        }
         List<Item> items = itemMapper.selectList(itemWrapper);
 
         // categoryId → tag → count
@@ -134,10 +124,14 @@ public class MarketplaceService {
                                             int page,
                                             int size,
                                             Long currentUserId) {
-        Long schoolId = marketplaceSchoolId(currentUserId);
+        SysUser viewer = requireMarketplaceUser(currentUserId);
+        Long schoolId = SchoolScopeGuard.requireAssigned(viewer.getSchoolId());
+        NeighborPriority neighborPriority = buildNeighborPriority(viewer, sort);
         Page<Item> itemPage = itemMapper.selectPage(
                 new Page<>(Math.max(page, 1), normalizeSize(size)),
-                buildOnSaleWrapper(keyword, categoryId, minPrice, maxPrice, sort, type, tag, schoolId)
+                buildOnSaleWrapper(
+                        keyword, categoryId, minPrice, maxPrice, sort, type, tag,
+                        schoolId, neighborPriority)
         );
 
         Page<ItemCardVO> result = new Page<>(itemPage.getCurrent(), itemPage.getSize(), itemPage.getTotal());
@@ -150,9 +144,7 @@ public class MarketplaceService {
         if (item == null) {
             throw new BusinessException(ResultCode.NOT_FOUND, "商品不存在");
         }
-        if (currentUserId != null) {
-            requireSameSchool(currentUserId, item, "只能查看本校商品");
-        }
+        requireSameSchool(currentUserId, item, "只能查看本校商品");
         itemMapper.update(null, new LambdaUpdateWrapper<Item>()
                 .eq(Item::getId, itemId)
                 .setSql("view_count = view_count + 1")
@@ -172,6 +164,14 @@ public class MarketplaceService {
     public ItemCardVO getOwnItem(Long userId, Long itemId) {
         Item item = requireOwnItem(userId, itemId);
         return toItemCards(List.of(item), userId).get(0);
+    }
+
+    public void requireVisibleItem(Long userId, Long itemId) {
+        Item item = itemMapper.selectById(itemId);
+        if (item == null) {
+            throw new BusinessException(ResultCode.NOT_FOUND, "商品不存在");
+        }
+        requireSameSchool(userId, item, "只能查看本校商品");
     }
 
     @Transactional
@@ -271,24 +271,22 @@ public class MarketplaceService {
 
     public List<ItemCardVO> ranking(int limit, Long currentUserId) {
         int safeLimit = Math.max(1, Math.min(limit, 20));
-        Long schoolId = marketplaceSchoolId(currentUserId);
+        Long schoolId = requireUserSchoolId(currentUserId);
         QueryWrapper<ItemFavorite> rankingWrapper = new QueryWrapper<ItemFavorite>()
                 .select("item_id", "COUNT(*) AS favorite_count")
                 .groupBy("item_id")
                 .orderByDesc("favorite_count");
-        if (schoolId != null) {
-            List<Long> visibleItemIds = itemMapper.selectList(new LambdaQueryWrapper<Item>()
-                            .eq(Item::getStatus, "ON_SALE")
-                            .eq(Item::getSchoolId, schoolId)
-                            .select(Item::getId))
-                    .stream()
-                    .map(Item::getId)
-                    .toList();
-            if (visibleItemIds.isEmpty()) {
-                return List.of();
-            }
-            rankingWrapper.in("item_id", visibleItemIds);
+        List<Long> visibleItemIds = itemMapper.selectList(new LambdaQueryWrapper<Item>()
+                        .eq(Item::getStatus, "ON_SALE")
+                        .eq(Item::getSchoolId, schoolId)
+                        .select(Item::getId))
+                .stream()
+                .map(Item::getId)
+                .toList();
+        if (visibleItemIds.isEmpty()) {
+            return List.of();
         }
+        rankingWrapper.in("item_id", visibleItemIds);
         rankingWrapper.last("LIMIT " + safeLimit * 3);
         List<Map<String, Object>> rows = favoriteMapper.selectMaps(rankingWrapper);
 
@@ -302,7 +300,7 @@ public class MarketplaceService {
                 ? Map.of()
                 : itemMapper.selectBatchIds(rankedIds).stream()
                 .filter(item -> "ON_SALE".equals(item.getStatus()))
-                .filter(item -> schoolId == null || Objects.equals(item.getSchoolId(), schoolId))
+                .filter(item -> Objects.equals(item.getSchoolId(), schoolId))
                 .collect(Collectors.toMap(Item::getId, Function.identity()));
 
         List<Item> items = rankedIds.stream()
@@ -314,11 +312,9 @@ public class MarketplaceService {
         if (items.size() < safeLimit) {
             LambdaQueryWrapper<Item> fillerWrapper = new LambdaQueryWrapper<Item>()
                     .eq(Item::getStatus, "ON_SALE")
+                    .eq(Item::getSchoolId, schoolId)
                     .orderByDesc(Item::getCreatedAt)
                     .last("LIMIT " + (safeLimit - items.size()));
-            if (schoolId != null) {
-                fillerWrapper.eq(Item::getSchoolId, schoolId);
-            }
             if (!rankedIds.isEmpty()) {
                 fillerWrapper.notIn(Item::getId, rankedIds);
             }
@@ -332,20 +328,14 @@ public class MarketplaceService {
         return cards;
     }
 
-    public List<AiTagTrendVO> trendingAiTags(int limit) {
-        return trendingAiTags(limit, null);
-    }
-
     public List<AiTagTrendVO> trendingAiTags(int limit, Long currentUserId) {
         int safeLimit = Math.max(1, Math.min(limit, 10));
-        Long schoolId = marketplaceSchoolId(currentUserId);
+        Long schoolId = requireUserSchoolId(currentUserId);
         QueryWrapper<Item> tagWrapper = new QueryWrapper<Item>()
                 .select("ai_tags")
                 .eq("status", "ON_SALE")
+                .eq("school_id", schoolId)
                 .isNotNull("ai_tags");
-        if (schoolId != null) {
-            tagWrapper.eq("school_id", schoolId);
-        }
         List<Object> rawTagValues = itemMapper.selectObjs(tagWrapper);
 
         Map<String, Long> frequencies = new HashMap<>();
@@ -373,12 +363,11 @@ public class MarketplaceService {
                                                        String sort,
                                                        String type,
                                                        String tag,
-                                                       Long schoolId) {
+                                                       Long schoolId,
+                                                       NeighborPriority neighborPriority) {
         LambdaQueryWrapper<Item> wrapper = new LambdaQueryWrapper<Item>()
-                .eq(Item::getStatus, "ON_SALE");
-        if (schoolId != null) {
-            wrapper.eq(Item::getSchoolId, schoolId);
-        }
+                .eq(Item::getStatus, "ON_SALE")
+                .eq(Item::getSchoolId, schoolId);
         if (StringUtils.hasText(keyword)) {
             String kw = keyword.trim();
             wrapper.and(w -> w.like(Item::getTitle, kw)
@@ -403,47 +392,107 @@ public class MarketplaceService {
             String trimmed = tag.trim();
             wrapper.like(Item::getAiTags, "\"" + trimmed + "\"");
         }
-        applySort(wrapper, sort);
+        applySort(wrapper, sort, neighborPriority);
         return wrapper;
     }
 
-    /**
-     * 所有登录账号（包括管理员）访问普通商品接口时，只能看到所属学校的数据。
-     * 未登录访客沿用公共浏览视图；/api/admin/** 管理接口不经过此处，保持全平台范围。
-     */
-    private Long marketplaceSchoolId(Long currentUserId) {
+    private SysUser requireMarketplaceUser(Long currentUserId) {
         if (currentUserId == null) {
-            return null;
+            throw new BusinessException(ResultCode.UNAUTHORIZED);
         }
-        return requireUserSchoolId(currentUserId);
-    }
-
-    private void requireSameSchool(Long userId, Item item, String message) {
-        SysUser user = userMapper.selectById(userId);
+        SysUser user = userMapper.selectById(currentUserId);
         if (user == null) {
             throw new BusinessException(ResultCode.USER_NOT_FOUND);
         }
+        SchoolScopeGuard.requireAssigned(user.getSchoolId());
+        return user;
+    }
+
+    private void requireSameSchool(Long userId, Item item, String message) {
+        SysUser user = requireMarketplaceUser(userId);
         SchoolScopeGuard.requireSame(user.getSchoolId(), item.getSchoolId(), message);
     }
 
     private Long requireUserSchoolId(Long userId) {
-        SysUser user = userMapper.selectById(userId);
-        if (user == null) {
-            throw new BusinessException(ResultCode.USER_NOT_FOUND);
-        }
+        SysUser user = requireMarketplaceUser(userId);
         return SchoolScopeGuard.requireAssigned(user.getSchoolId());
     }
 
-    private void applySort(LambdaQueryWrapper<Item> wrapper, String sort) {
+    private void applySort(LambdaQueryWrapper<Item> wrapper,
+                           String sort,
+                           NeighborPriority neighborPriority) {
         String normalized = StringUtils.hasText(sort) ? sort.trim() : "random";
         switch (normalized) {
             case "priceAsc" -> wrapper.orderByAsc(Item::getPrice).orderByDesc(Item::getCreatedAt);
             case "priceDesc" -> wrapper.orderByDesc(Item::getPrice).orderByDesc(Item::getCreatedAt);
             case "latest" -> wrapper.orderByDesc(Item::getCreatedAt);
             case "views" -> wrapper.orderByDesc(Item::getViewCount).orderByDesc(Item::getCreatedAt);
-            case "random" -> wrapper.last("ORDER BY RAND()");
+            case "random" -> applyNeighborSort(wrapper, neighborPriority);
             default -> wrapper.orderByDesc(Item::getCreatedAt);
         }
+    }
+
+    private NeighborPriority buildNeighborPriority(SysUser viewer, String sort) {
+        String normalizedSort = StringUtils.hasText(sort) ? sort.trim() : "random";
+        if (!"random".equals(normalizedSort)
+                || (!StringUtils.hasText(viewer.getDormitory())
+                && !StringUtils.hasText(viewer.getCampus()))) {
+            return NeighborPriority.empty();
+        }
+
+        String viewerDormitory = normalizeDormitory(viewer.getDormitory());
+        String viewerCampus = normalizeCampus(viewer.getCampus());
+        List<SysUser> schoolUsers = userMapper.selectList(new LambdaQueryWrapper<SysUser>()
+                .eq(SysUser::getSchoolId, viewer.getSchoolId())
+                .and(wrapper -> wrapper
+                        .isNotNull(SysUser::getDormitory)
+                        .or()
+                        .isNotNull(SysUser::getCampus))
+                .select(SysUser::getId, SysUser::getCampus, SysUser::getDormitory));
+
+        Set<Long> sameBuilding = new HashSet<>();
+        Set<Long> sameCampus = new HashSet<>();
+        for (SysUser user : schoolUsers) {
+            String dormitory = normalizeDormitory(user.getDormitory());
+            String campus = normalizeCampus(user.getCampus());
+            boolean campusMatches = !viewerCampus.isEmpty() && viewerCampus.equals(campus);
+            boolean campusConflicts = !viewerCampus.isEmpty()
+                    && !campus.isEmpty()
+                    && !campusMatches;
+            if (!viewerDormitory.isEmpty()
+                    && viewerDormitory.equals(dormitory)
+                    && !campusConflicts) {
+                sameBuilding.add(user.getId());
+            } else if (campusMatches) {
+                sameCampus.add(user.getId());
+            }
+        }
+        return new NeighborPriority(sameBuilding, sameCampus);
+    }
+
+    private void applyNeighborSort(LambdaQueryWrapper<Item> wrapper,
+                                   NeighborPriority neighborPriority) {
+        if (neighborPriority == null || neighborPriority.isEmpty()) {
+            wrapper.last("ORDER BY RAND()");
+            return;
+        }
+
+        List<String> cases = new ArrayList<>();
+        if (!neighborPriority.sameBuilding().isEmpty()) {
+            cases.add("WHEN publisher_id IN (" + joinIds(neighborPriority.sameBuilding()) + ") THEN 0");
+        }
+        if (!neighborPriority.sameCampus().isEmpty()) {
+            cases.add("WHEN publisher_id IN (" + joinIds(neighborPriority.sameCampus()) + ") THEN 1");
+        }
+        wrapper.last("ORDER BY CASE " + String.join(" ", cases) + " ELSE 2 END, RAND()");
+    }
+
+    private String joinIds(Set<Long> ids) {
+        return ids.stream()
+                .filter(Objects::nonNull)
+                .sorted()
+                .map(String::valueOf)
+                .collect(Collectors.joining(","));
     }
 
     private List<ItemCardVO> toItemCards(List<Item> items, Long currentUserId) {
@@ -458,6 +507,7 @@ public class MarketplaceService {
         Map<Long, SysUser> users = selectUserMap(publisherIds);
         Map<Long, Long> favoriteCounts = favoriteCounts(itemIds);
         Set<Long> myFavorites = currentUserId == null ? Collections.emptySet() : favoriteItemIds(currentUserId, itemIds);
+        SysUser viewer = currentUserId == null ? null : userMapper.selectById(currentUserId);
 
         return items.stream().map(item -> {
             Category category = categories.get(item.getCategoryId());
@@ -469,6 +519,8 @@ public class MarketplaceService {
                 vo.setPublisherNickname(publisher.getNickname());
                 vo.setPublisherLevel(publisher.getLevel());
                 vo.setPublisherLevelTitle(LevelRule.titleOf(publisher.getLevel()));
+                vo.setPublisherVerified(StringUtils.hasText(publisher.getSchoolEmail()));
+                vo.setDormitoryRelation(proximityRelation(viewer, publisher));
             }
             vo.setType(item.getType());
             vo.setTitle(item.getTitle());
@@ -489,6 +541,40 @@ public class MarketplaceService {
             vo.setUpdatedAt(item.getUpdatedAt());
             return vo;
         }).toList();
+    }
+
+    private String proximityRelation(SysUser viewer, SysUser publisher) {
+        if (viewer == null || publisher == null
+                || !Objects.equals(viewer.getSchoolId(), publisher.getSchoolId())
+                || (!StringUtils.hasText(viewer.getDormitory())
+                && !StringUtils.hasText(viewer.getCampus()))) {
+            return null;
+        }
+
+        String viewerDormitory = normalizeDormitory(viewer.getDormitory());
+        String publisherDormitory = normalizeDormitory(publisher.getDormitory());
+        String viewerCampus = normalizeCampus(viewer.getCampus());
+        String publisherCampus = normalizeCampus(publisher.getCampus());
+        boolean campusMatches = !viewerCampus.isEmpty() && viewerCampus.equals(publisherCampus);
+        boolean campusConflicts = !viewerCampus.isEmpty()
+                && !publisherCampus.isEmpty()
+                && !campusMatches;
+        if (!viewerDormitory.isEmpty()
+                && viewerDormitory.equals(publisherDormitory)
+                && !campusConflicts) {
+            return "SAME_BUILDING";
+        }
+        return campusMatches
+                ? "SAME_CAMPUS"
+                : null;
+    }
+
+    private String normalizeDormitory(String dormitory) {
+        return dormitory == null ? "" : dormitory.replaceAll("\\s+", "").trim();
+    }
+
+    private String normalizeCampus(String campus) {
+        return campus == null ? "" : campus.replaceAll("\\s+", "").trim();
     }
 
     private Map<Long, Category> selectCategoryMap(Set<Long> ids) {
@@ -569,5 +655,15 @@ public class MarketplaceService {
         if (value instanceof Number n) return n.longValue();
         if (value == null) return 0L;
         return Long.parseLong(String.valueOf(value));
+    }
+
+    private record NeighborPriority(Set<Long> sameBuilding, Set<Long> sameCampus) {
+        private static NeighborPriority empty() {
+            return new NeighborPriority(Set.of(), Set.of());
+        }
+
+        private boolean isEmpty() {
+            return sameBuilding.isEmpty() && sameCampus.isEmpty();
+        }
     }
 }

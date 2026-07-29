@@ -19,6 +19,7 @@ public class SysUser {
     private Long schoolId;          // 所属学校（普通功能按学校隔离；管理员默认上海大学）
     private String schoolEmail;     // 学校邮箱（可选）
     // ---- 模块一创新功能：信任标签（自愿补全）----
+    private String campus;          // 校区
     private String college;         // 学院
     private String grade;           // 年级
     private String dormitory;       // 宿舍楼

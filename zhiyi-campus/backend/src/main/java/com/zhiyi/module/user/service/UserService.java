@@ -45,7 +45,7 @@ public class UserService {
     }
 
     /**
-     * 更新学校、学校邮箱、昵称/手机号与信任资料。
+     * 更新学校、学校邮箱、昵称/手机号与校区等信任资料。
      * 学校允许因转学、升学等情况修改；学校邮箱无需验证码，但必须匹配目标学校后缀。
      */
     @Transactional(rollbackFor = Exception.class)
@@ -57,10 +57,12 @@ public class UserService {
 
         boolean schoolProvided = dto.getSchoolId() != null;
         boolean emailProvided = dto.getSchoolEmail() != null;
+        boolean campusProvided = dto.getCampus() != null;
         boolean collegeProvided = dto.getCollege() != null;
         boolean gradeProvided = dto.getGrade() != null;
         boolean dormitoryProvided = dto.getDormitory() != null;
         String targetEmail = current.getSchoolEmail();
+        String targetCampus = campusProvided ? blankToNull(dto.getCampus()) : current.getCampus();
         String targetCollege = collegeProvided ? blankToNull(dto.getCollege()) : current.getCollege();
         String targetGrade = gradeProvided ? blankToNull(dto.getGrade()) : current.getGrade();
         String targetDormitory = dormitoryProvided ? blankToNull(dto.getDormitory()) : current.getDormitory();
@@ -89,6 +91,9 @@ public class UserService {
             patch.setSchoolEmail(targetEmail);
         }
         // 传了才更新；空串归一化为 null，等价于「清空该项」，不参与信任标签比对
+        if (campusProvided && targetCampus != null) {
+            patch.setCampus(targetCampus);
+        }
         if (collegeProvided && targetCollege != null) {
             patch.setCollege(targetCollege);
         }
@@ -103,6 +108,9 @@ public class UserService {
         var update = Wrappers.<SysUser>lambdaUpdate().eq(SysUser::getId, userId);
         if (emailProvided && targetEmail == null) {
             update.set(SysUser::getSchoolEmail, null);
+        }
+        if (campusProvided && targetCampus == null) {
+            update.set(SysUser::getCampus, null);
         }
         if (collegeProvided && targetCollege == null) {
             update.set(SysUser::getCollege, null);
@@ -121,8 +129,8 @@ public class UserService {
     }
 
     /**
-     * 伪熟人信任标签（A5）：比对访客与目标的学院/年级/宿舍楼。
-     * 关键约束：仅当双方该字段都非空才比对；只回「同学院/同级/同楼」文案，不暴露具体值。
+     * 伪熟人信任标签（A5）：比对访客与目标的学院/年级/校区/宿舍楼。
+     * 关键约束：仅当双方该字段都非空才比对；只返回关系文案，不暴露具体值。
      * 看自己不生成标签。
      */
     public List<String> getRelationTags(Long viewerId, Long targetId) {
@@ -137,16 +145,19 @@ public class UserService {
         if (target == null) {
             throw new BusinessException(ResultCode.USER_NOT_FOUND);
         }
-        // “同学院/同级/同楼”只在同一学校内成立，避免不同学校同名字段产生伪关系。
+        // 校园关系只在同一学校内成立，避免不同学校同名字段产生伪关系。
         if (viewer.getSchoolId() == null || !Objects.equals(viewer.getSchoolId(), target.getSchoolId())) {
             return List.of();
         }
-        List<String> tags = new ArrayList<>(3);
+        List<String> tags = new ArrayList<>(4);
         if (bothMatch(viewer.getCollege(), target.getCollege())) {
             tags.add("同学院");
         }
         if (bothMatch(viewer.getGrade(), target.getGrade())) {
             tags.add("同级");
+        }
+        if (bothMatch(viewer.getCampus(), target.getCampus())) {
+            tags.add("同校区");
         }
         if (bothMatch(viewer.getDormitory(), target.getDormitory())) {
             tags.add("同楼");
@@ -202,7 +213,8 @@ public class UserService {
         SysUser user = userMapper.selectOne(Wrappers.<SysUser>lambdaQuery()
                 .select(SysUser::getId, SysUser::getNickname, SysUser::getLevel,
                         SysUser::getSchoolId, SysUser::getPhone, SysUser::getSchoolEmail,
-                        SysUser::getCollege, SysUser::getGrade, SysUser::getDormitory)
+                        SysUser::getCampus, SysUser::getCollege,
+                        SysUser::getGrade, SysUser::getDormitory)
                 .eq(SysUser::getId, userId));
         if (user == null) {
             throw new BusinessException(ResultCode.USER_NOT_FOUND);
@@ -217,6 +229,7 @@ public class UserService {
                 schoolService.schoolNameOf(user.getSchoolId()),
                 user.getPhone(),
                 user.getSchoolEmail(),
+                user.getCampus(),
                 user.getCollege(),
                 user.getGrade(),
                 user.getDormitory());

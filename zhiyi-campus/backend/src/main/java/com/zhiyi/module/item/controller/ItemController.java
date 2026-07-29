@@ -2,6 +2,8 @@ package com.zhiyi.module.item.controller;
 
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.zhiyi.common.Result;
+import com.zhiyi.module.admin.service.AdminLineageService;
+import com.zhiyi.module.admin.vo.ItemLineageVO;
 import com.zhiyi.module.item.dto.PublishItemDTO;
 import com.zhiyi.module.item.service.ItemPublishService;
 import com.zhiyi.module.item.service.MarketplaceService;
@@ -9,9 +11,6 @@ import com.zhiyi.module.item.vo.AiTagTrendVO;
 import com.zhiyi.module.item.vo.FavoriteToggleVO;
 import com.zhiyi.module.item.vo.ItemCardVO;
 import com.zhiyi.module.item.vo.UploadImageVO;
-import com.zhiyi.utils.JwtUtils;
-import io.jsonwebtoken.Claims;
-import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -25,7 +24,6 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
-import org.springframework.util.StringUtils;
 
 import java.math.BigDecimal;
 import java.util.List;
@@ -38,7 +36,7 @@ public class ItemController {
 
     private final MarketplaceService marketplaceService;
     private final ItemPublishService itemPublishService;
-    private final JwtUtils jwtUtils;
+    private final AdminLineageService lineageService;
 
     @PostMapping("/upload-image")
     public Result<UploadImageVO> uploadImage(@RequestParam("file") MultipartFile file) {
@@ -74,9 +72,9 @@ public class ItemController {
                                           @RequestParam(defaultValue = "random") String sort,
                                           @RequestParam(defaultValue = "1") int page,
                                           @RequestParam(defaultValue = "12") int size,
-                                          HttpServletRequest request) {
+                                          @RequestAttribute("userId") Long userId) {
         return Result.ok(marketplaceService.listOnSaleItems(
-                keyword, categoryId, minPrice, maxPrice, sort, type, tag, page, size, optionalCurrentUser(request)));
+                keyword, categoryId, minPrice, maxPrice, sort, type, tag, page, size, userId));
     }
 
     @GetMapping("/search")
@@ -89,32 +87,39 @@ public class ItemController {
                                             @RequestParam(defaultValue = "latest") String sort,
                                             @RequestParam(defaultValue = "1") int page,
                                             @RequestParam(defaultValue = "12") int size,
-                                            HttpServletRequest request) {
+                                            @RequestAttribute("userId") Long userId) {
         return Result.ok(marketplaceService.listOnSaleItems(
-                keyword, categoryId, minPrice, maxPrice, sort, type, tag, page, size, optionalCurrentUser(request)));
+                keyword, categoryId, minPrice, maxPrice, sort, type, tag, page, size, userId));
     }
 
     @GetMapping("/tags")
-    public Result<List<Map<String, Object>>> allTags(HttpServletRequest request) {
-        return Result.ok(marketplaceService.getAllTags(optionalCurrentUser(request)));
+    public Result<List<Map<String, Object>>> allTags(@RequestAttribute("userId") Long userId) {
+        return Result.ok(marketplaceService.getAllTags(userId));
     }
 
     @GetMapping("/ranking")
     public Result<List<ItemCardVO>> ranking(@RequestParam(defaultValue = "10") int limit,
-                                            HttpServletRequest request) {
-        return Result.ok(marketplaceService.ranking(limit, optionalCurrentUser(request)));
+                                            @RequestAttribute("userId") Long userId) {
+        return Result.ok(marketplaceService.ranking(limit, userId));
     }
 
     @GetMapping("/ranking/tags")
     public Result<List<AiTagTrendVO>> trendingAiTags(@RequestParam(defaultValue = "10") int limit,
-                                                     HttpServletRequest request) {
-        return Result.ok(marketplaceService.trendingAiTags(limit, optionalCurrentUser(request)));
+                                                     @RequestAttribute("userId") Long userId) {
+        return Result.ok(marketplaceService.trendingAiTags(limit, userId));
     }
 
     @GetMapping("/{id}")
     public Result<ItemCardVO> detail(@PathVariable Long id,
-                                     HttpServletRequest request) {
-        return Result.ok(marketplaceService.getDetail(id, optionalCurrentUser(request)));
+                                     @RequestAttribute("userId") Long userId) {
+        return Result.ok(marketplaceService.getDetail(id, userId));
+    }
+
+    @GetMapping("/{id}/lineage")
+    public Result<ItemLineageVO> lineage(@PathVariable Long id,
+                                         @RequestAttribute("userId") Long userId) {
+        marketplaceService.requireVisibleItem(userId, id);
+        return Result.ok(lineageService.getLineage(id));
     }
 
     @PostMapping("/{id}/favorite")
@@ -159,15 +164,4 @@ public class ItemController {
         return Result.ok("已删除", null);
     }
 
-    private Long optionalCurrentUser(HttpServletRequest request) {
-        String authorization = request.getHeader("Authorization");
-        if (!StringUtils.hasText(authorization) || !authorization.startsWith("Bearer ")) {
-            return null;
-        }
-        Claims claims = jwtUtils.parse(authorization.substring(7));
-        if (claims == null || !StringUtils.hasText(claims.getSubject())) {
-            return null;
-        }
-        return Long.parseLong(claims.getSubject());
-    }
 }

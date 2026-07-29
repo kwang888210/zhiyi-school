@@ -11,7 +11,6 @@ import org.springframework.web.util.ServletRequestPathUtils;
 
 import java.util.List;
 
-import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 class WebMvcConfigTest {
 
@@ -32,7 +31,7 @@ class WebMvcConfigTest {
     }
 
     @Test
-    void trendingAiTagsRouteIsPublic() {
+    void trendingAiTagsRouteRequiresLogin() {
         JwtInterceptor jwtInterceptor = new JwtInterceptor(null, null);
         RoleInterceptor roleInterceptor = new RoleInterceptor();
         WebMvcConfig config = new WebMvcConfig(jwtInterceptor, roleInterceptor);
@@ -43,7 +42,7 @@ class WebMvcConfigTest {
         MappedInterceptor jwtMapping = registry.mappingFor(jwtInterceptor);
         MockHttpServletRequest request = new MockHttpServletRequest("GET", "/api/item/ranking/tags");
         ServletRequestPathUtils.parseAndCache(request);
-        assertFalse(jwtMapping.matches(request));
+        assertTrue(jwtMapping.matches(request));
     }
 
     private static final class ExposedInterceptorRegistry extends InterceptorRegistry {

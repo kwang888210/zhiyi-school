@@ -37,6 +37,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -78,6 +79,7 @@ class AuthServiceTest {
                 loginAttemptService,
                 userStateCache,
                 schoolService);
+        lenient().when(schoolMapper.selectById(1L)).thenReturn(shu());
     }
 
     /** 上海大学，测试用固定学校 */
@@ -93,8 +95,9 @@ class AuthServiceTest {
 
     @Test
     @SuppressWarnings("unchecked")
-    void loginUsesCanonicalIdForThrottleAndQuery() {
+    void loginUsesSchoolAndCanonicalIdForThrottleAndQuery() {
         LoginDTO dto = new LoginDTO();
+        dto.setSchoolId(1L);
         dto.setStudentId("  AdMiN  ");
         dto.setPassword("wrong");
         when(userMapper.selectOne(any())).thenReturn(null);
@@ -111,8 +114,10 @@ class AuthServiceTest {
         String sql = wrapper.getSqlSegment();
         assertTrue(wrapper.getParamNameValuePairs().containsValue("admin"),
                 () -> "sql=" + sql + ", params=" + wrapper.getParamNameValuePairs());
-        assertTrue(loginAttemptService.isLocked("admin"));
-        assertTrue(loginAttemptService.isLocked("  ADMIN  "));
+        assertTrue(wrapper.getParamNameValuePairs().containsValue(1L),
+                () -> "sql=" + sql + ", params=" + wrapper.getParamNameValuePairs());
+        assertTrue(loginAttemptService.isLocked("1:admin"));
+        assertTrue(loginAttemptService.isLocked("  1:ADMIN  "));
     }
 
     @Test
@@ -135,6 +140,17 @@ class AuthServiceTest {
         }).when(userMapper).insert(any(SysUser.class));
 
         LoginVO result = service.register(dto);
+
+        ArgumentCaptor<Wrapper<SysUser>> duplicateQuery =
+                ArgumentCaptor.forClass(Wrapper.class);
+        verify(userMapper).selectOne(duplicateQuery.capture());
+        LambdaQueryWrapper<SysUser> duplicateWrapper =
+                (LambdaQueryWrapper<SysUser>) duplicateQuery.getValue();
+        String duplicateSql = duplicateWrapper.getSqlSegment();
+        assertTrue(duplicateWrapper.getParamNameValuePairs().containsValue(1L),
+                () -> "sql=" + duplicateSql + ", params=" + duplicateWrapper.getParamNameValuePairs());
+        assertTrue(duplicateWrapper.getParamNameValuePairs().containsValue("abcd1234"),
+                () -> "sql=" + duplicateSql + ", params=" + duplicateWrapper.getParamNameValuePairs());
 
         ArgumentCaptor<SysUser> captor = ArgumentCaptor.forClass(SysUser.class);
         verify(userMapper).insert(captor.capture());
@@ -214,7 +230,7 @@ class AuthServiceTest {
 
     @Test
     @SuppressWarnings("unchecked")
-    void securityQuestionUsesCanonicalIdForQuery() {
+    void securityQuestionUsesSchoolAndCanonicalIdForQuery() {
         SysUser user = new SysUser();
         user.setId(3L);
         user.setStatus("ACTIVE");
@@ -222,7 +238,7 @@ class AuthServiceTest {
         when(userMapper.selectOne(any())).thenReturn(user);
 
         assertEquals("你的出生地是哪个城市？",
-                service.getSecurityQuestion(" USER01 "));
+                service.getSecurityQuestion(1L, " USER01 "));
 
         ArgumentCaptor<Wrapper<SysUser>> query =
                 ArgumentCaptor.forClass(Wrapper.class);
@@ -232,12 +248,15 @@ class AuthServiceTest {
         String sql = wrapper.getSqlSegment();
         assertTrue(wrapper.getParamNameValuePairs().containsValue("user01"),
                 () -> "sql=" + sql + ", params=" + wrapper.getParamNameValuePairs());
+        assertTrue(wrapper.getParamNameValuePairs().containsValue(1L),
+                () -> "sql=" + sql + ", params=" + wrapper.getParamNameValuePairs());
     }
 
     @Test
     void resetPasswordBuildsLimiterKeyFromCanonicalId() {
-        loginAttemptService.recordFailure("reset:user01");
+        loginAttemptService.recordFailure("reset:1:user01");
         ResetPasswordDTO dto = new ResetPasswordDTO();
+        dto.setSchoolId(1L);
         dto.setStudentId(" USER01 ");
         dto.setSecurityAnswer("answer");
         dto.setNewPassword("newpass");
@@ -257,6 +276,7 @@ class AuthServiceTest {
         when(userMapper.selectOne(any())).thenReturn(user);
         when(passwordEncoder.matches("secret", "old-hash")).thenReturn(true);
         LoginDTO dto = new LoginDTO();
+        dto.setSchoolId(1L);
         dto.setStudentId("user01");
         dto.setPassword("secret");
 
@@ -269,6 +289,7 @@ class AuthServiceTest {
     @Test
     void successfulResetInvalidatesStateAfterCommit() {
         ResetPasswordDTO dto = new ResetPasswordDTO();
+        dto.setSchoolId(1L);
         dto.setStudentId("user01");
         dto.setSecurityAnswer(" Answer ");
         dto.setNewPassword("newpass");
@@ -298,6 +319,7 @@ class AuthServiceTest {
         when(userMapper.selectOne(any())).thenReturn(user);
         when(passwordEncoder.matches("secret", "old-hash")).thenReturn(true);
         LoginDTO dto = new LoginDTO();
+        dto.setSchoolId(1L);
         dto.setStudentId("user01");
         dto.setPassword("secret");
 

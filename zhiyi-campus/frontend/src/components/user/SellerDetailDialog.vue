@@ -112,6 +112,7 @@ const detailFields = computed(() => [
   { label: '昵称', value: props.seller?.nickname },
   { label: '手机号', value: props.seller?.phone },
   { label: '学校邮箱', value: props.seller?.schoolEmail },
+  { label: '校区', value: props.seller?.campus },
   { label: '学院', value: props.seller?.college },
   { label: '年级', value: props.seller?.grade },
   { label: '宿舍楼', value: props.seller?.dormitory },

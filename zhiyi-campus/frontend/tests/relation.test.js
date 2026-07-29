@@ -8,7 +8,7 @@ import {
 
 test('keeps A5 relation tags in the product order', () => {
   assert.deepEqual(
-    normalizeRelationTags(['同楼', '同学院', '同级']),
+    normalizeRelationTags(['同楼', '同校区', '同学院', '同级']),
     KNOWN_RELATION_TAGS
   )
 })

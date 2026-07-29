@@ -1,137 +1,116 @@
-# 模块三：交易大厅与社交互动（成员 C）
+# 模块三：交易大厅与社交（成员 C）
 
-> 负责人：C | 涉及表：`item`、`category`、`item_favorite`、`chat_message`、`sys_user` | 分支：`feature/marketplace`
+> 对照文档：`创新功能方案.md` 的 C1-C10
+> 当前分支：`codex/module3-campus-social`
+> 涉及表：`item`、`category`、`item_favorite`、`chat_message`、`sys_user`、`trade_order`
 
-## 一、已实现功能（对照需求 3.1–3.6）
+## 一、C1-C10 完成情况
 
-| 需求 | 实现 | 验收状态 |
+| 编号 | 功能 | 实现说明 | 状态 |
+|:--:|------|---------|:--:|
+| C1 | 学校隔离 | 大厅、搜索、AI 标签、排行榜、详情和聊天均要求登录；普通接口始终使用当前账号的 `school_id`，未登录首页只显示登录引导 | 已完成 |
+| C2 | 楼友优先 | “智能推荐”读取用户宿舍楼和校区，按同楼、同校区、全校分组后组内随机；价格、时间等显式排序保持原语义 | 已完成 |
+| C3 | 楼友标签 | `ItemCardVO.dormitoryRelation` 返回 `SAME_BUILDING` / `SAME_CAMPUS`，卡片显示“本楼”或“本校区” | 已完成 |
+| C4 | 信任标签 | 商品详情调用 `GET /api/user/{id}/relation`，展示同学院、同级、同校区、同楼等关系标签 | 已完成 |
+| C5 | 大事件专题 | 首页按日期展示新生入学季、期末备考季、毕业清仓季专题条，并可一键带入分类/关键词筛选 | 已完成 |
+| C6 | 排行榜入口 | 首页吸顶侧栏增加“查看完整榜单”入口，跳转 `/ranking` | 已完成 |
+| C7 | 传承树 | 教材类商品详情调用同校可见的传承接口，按发布者、历次已完成订单展示时间轴 | 已完成 |
+| C8 | AI 标签卡片 | 大厅及排行榜卡片展示 AI 标签，点击后跳转 `/?keyword=标签` 并执行搜索 | 已完成 |
+| C9 | 认证标识 | 卡片和详情页支持“已认证”标识；当前兼容主分支 A 模块，以已填写且通过学校后缀校验的 `schoolEmail` 判定 | 已完成 |
+| C10 | 价格筛选触发 | 最低价、最高价增加 450ms 防抖监听；失焦或回车立即执行尚未触发的筛选 | 已完成 |
+
+## 二、核心行为
+
+### 1. 学校数据边界
+
+- `/api/item/list`、`/api/item/search`、`/api/item/tags`、`/api/item/ranking`、`/api/item/ranking/tags` 和 `/api/item/{id}` 均经过 JWT 拦截。
+- `MarketplaceService` 从当前用户读取学校，不接受前端传入 `schoolId`，避免越权修改查询范围。
+- 收藏、商品详情、聊天发起、聊天发送、会话读取和未读消息均校验用户、卖家与商品属于同一学校。
+- `/api/admin/**` 保持管理员全平台视角，不复用普通大厅的数据范围。
+
+### 2. 楼友推荐
+
+仅当用户选择“智能推荐”且个人资料填写了宿舍楼或校区时启用：
+
+1. 规范化宿舍和校区文本中的空格。
+2. 同一学校、同一校区且宿舍楼完全相同的用户归入“同楼”。
+3. 校区相同但宿舍楼不同或未填写宿舍楼的用户归入“同校区”。
+4. 查询顺序为同楼、同校区、全校，各组内部使用随机顺序。
+5. 若双方校区冲突，即使宿舍楼文本相同也不会误判为同楼。
+6. 排序语句只拼接数据库返回的数字用户 ID，不拼接校区或宿舍文本。
+
+### 3. 专题时段
+
+| 专题 | 时段 | 一键筛选 |
 |------|------|---------|
-| 3.1 首页商品大厅 | 首页从 `WipPage` 替换为真实商品大厅，展示在售商品卡片、主图、标题、价格、分类、收藏数、浏览数、卖家等级；支持分页与“换一批” | ✅ 编译/构建通过 |
-| 3.2 商品搜索与筛选 | 关键词模糊搜索标题、描述、AI 标签；支持大类、价格区间、出售/求购类型、智能乱序/最新/价格/浏览排序组合筛选；爆款榜统计全部在售商品的高频 AI 标签 Top 10，标签可点击搜索 | ✅ 接口联调通过 |
-| 3.3 商品详情页 | 详情页展示图片、标题、价格、分类、标签、浏览/收藏、卖家等级、描述、交易地点；标签可跳回大厅搜索 | ✅ 构建通过 |
-| 3.4 商品收藏 | 登录用户可收藏/取消收藏；唯一索引防重复；我的收藏列表可分页展示；详情/大厅即时更新收藏数 | ✅ 后端编译通过 |
-| 3.5 近期爆款榜单 | 按收藏数聚合 Top 10，只展示在售商品；收藏变化后前端刷新榜单 | ✅ 公开接口 200 |
-| 3.6 内置聊天系统 | 商品页一键联系卖家；消息列表、对话详情、发送消息、未读统计；前端 2.5s 轮询；打开会话批量已读 | ✅ 登录接口联调通过 |
-| 扩展：联系客服 | 用户可从消息页进入管理员客服会话；A 模块升级/处罚事件提交后写入系统消息 | ✅ 后端测试通过 |
+| 新生入学季 | 08.25-09.15 | 生活日用 |
+| 期末备考季 | 12.20-01.20 | 教材书籍 + “真题” |
+| 毕业清仓季 | 05.25-06.30 | “毕业”关键词 |
 
-## 二、API 一览
+当前专题规则作为 C 模块前端兜底配置。B8 的后台专题配置接口完成后，可将常量替换为接口数据，页面结构和筛选函数无需重写。
+
+## 三、API
 
 ### 公开接口
+
 | 方法 | 路径 | 说明 |
 |------|------|------|
-| GET | `/api/category/list` | 商品大类列表 |
-| GET | `/api/item/list?page=&size=&keyword=&categoryId=&minPrice=&maxPrice=&type=&sort=` | 商品大厅列表（默认 `sort=random`） |
-| GET | `/api/item/search?page=&size=&keyword=&categoryId=&minPrice=&maxPrice=&type=&sort=` | 商品搜索（默认 `sort=latest`） |
-| GET | `/api/item/ranking?limit=10` | 近期爆款榜单 |
-| GET | `/api/item/{id}` | 商品详情；读取时浏览数 +1 |
+| GET | `/api/category/list` | 启用中的商品分类 |
+| GET | `/api/school/list` | 登录/注册页学校列表 |
 
 ### 登录接口
+
 | 方法 | 路径 | 说明 |
 |------|------|------|
-| POST | `/api/item/{id}/favorite` | 收藏/取消收藏，返回 `{ itemId, favorite, favoriteCount }` |
-| GET | `/api/item/my-favorites?page=&size=` | 我的收藏 |
-| GET | `/api/item/my-items?page=&size=&status=` | 我的发布列表（供 A 页面联调） |
-| PUT | `/api/item/{id}/off-shelf` | 用户下架自己的在售商品 |
-| PUT | `/api/item/{id}/relist` | 用户重新上架自己的已下架商品 |
-| DELETE | `/api/item/{id}` | 用户删除自己的非交易中商品 |
-| POST | `/api/chat/start` | 基于商品 `{ itemId }` 创建/获取买卖双方会话元信息 |
-| POST | `/api/chat/customer-service` | 创建/获取当前用户与管理员客服会话 |
-| GET | `/api/chat/conversations` | 当前用户会话列表，按最新消息倒序 |
-| GET | `/api/chat/messages?conversationId=&peerId=&relatedItemId=` | 会话历史；打开后将当前用户收到的未读消息标记已读 |
-| POST | `/api/chat/send` | 发送消息 `{ conversationId, receiverId, relatedItemId?, content }` |
-| GET | `/api/chat/unread-count` | 当前用户未读消息总数 |
-| GET | `/api/chat/unread?conversationId=` | 当前用户未读消息列表 |
+| GET | `/api/item/list` | 本校在售商品；支持关键词、分类、价格、类型、AI 标签和排序 |
+| GET | `/api/item/search` | 本校商品搜索 |
+| GET | `/api/item/tags` | 本校在售商品 AI 标签分组统计 |
+| GET | `/api/item/ranking?limit=20` | 本校收藏热度榜 |
+| GET | `/api/item/ranking/tags?limit=10` | 本校高频 AI 标签 Top 10 |
+| GET | `/api/item/{id}` | 本校商品详情 |
+| GET | `/api/item/{id}/lineage` | 本校商品传承链 |
+| POST | `/api/item/{id}/favorite` | 收藏或取消收藏 |
+| GET | `/api/chat/conversations` | 当前用户可访问的同校会话 |
+| GET | `/api/chat/messages` | 会话消息并标记已读 |
+| POST | `/api/chat/start` | 发起本校商品会话 |
+| POST | `/api/chat/send` | 发送消息并校验会话范围 |
+| GET | `/api/chat/unread-count` | 当前用户可访问会话的未读数 |
 
-## 三、前端页面与文件归属
+## 四、主要文件
 
-| 页面 | 文件 | 说明 |
-|------|------|------|
-| 商品大厅 | `frontend/src/views/home/HomePage.vue` | C 模块主入口，含搜索筛选与排行榜 |
-| 商品详情 | `frontend/src/views/item/ItemDetailPage.vue` | B/C 共用；当前已接入 C 的收藏与联系卖家 |
-| 消息列表 | `frontend/src/views/chat/ChatListPage.vue` | 会话聚合、未读红点、联系客服 |
-| 对话详情 | `frontend/src/views/chat/ChatDetailPage.vue` | 历史消息、轮询刷新、发送消息、关联商品 |
-| API 封装 | `frontend/src/api/item.js`、`frontend/src/api/chat.js` | 统一走 `@/utils/request.js` |
-| 顶栏红点 | `frontend/src/components/layout/DefaultLayout.vue` | 5 秒轮询 `/api/chat/unread-count` |
+| 文件 | 职责 |
+|------|------|
+| `backend/.../item/service/MarketplaceService.java` | 同校查询、楼友排序、卡片标签、收藏、排行榜与 AI 标签统计 |
+| `backend/.../item/controller/ItemController.java` | 商品大厅、详情、排行与传承链接口 |
+| `backend/.../social/service/ChatService.java` | 同校聊天范围、会话、消息与未读统计 |
+| `frontend/src/views/home/HomePage.vue` | 大厅、搜索筛选、专题、卡片、吸顶排行榜 |
+| `frontend/src/views/ranking/RankingPage.vue` | 独立榜单和热门 AI 标签 |
+| `frontend/src/views/item/ItemDetailPage.vue` | 信任标签、认证标识和教材传承时间轴 |
+| `frontend/src/router/index.js` | 排行榜与详情登录保护 |
 
-## 四、给 A / B / D 的集成契约
+## 五、环境变量
 
-### 1. A 模块：用户与成长体系
+项目不在源码或文档中保存真实凭据。启动后端前由本机环境提供：
 
-- C 使用 `request.getAttribute("userId")` 获取当前登录用户，不自行解析 JWT。
-- 商品卡片和聊天会话展示卖家/对方等级，称号使用 A 模块 `LevelRule.titleOf(level)`。
-- C 已监听：
-  - `UserLevelUpEvent(userId, oldLevel, newLevel, expAfter)`
-  - `UserPunishedEvent(userId, type, reason, banDays, banUntilTime)`
-- 监听器使用 `@TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)`，并在 `REQUIRES_NEW` 事务内写入 `chat_message`，不会影响 A 的原事务提交。
-
-### 2. B 模块：商品发布与 AI 审核
-
-- B 发布商品后只要写入 `item` 表且 `status='ON_SALE'`，商品会自动出现在大厅、搜索和榜单。
-- `images` 与 `ai_tags` 按 JSON 数组字符串存储，C 后端会解析为 `List<String>` 给前端。
-- `ItemDetailPage.vue` 现在已具备完整详情展示，B 后续可继续补充编辑、AI 审核结果展示、发布入口。
-
-### 3. D 模块：交易与管理后台
-
-- 详情页保留“立即购买”按钮位，当前置灰，D 接入订单接口后可直接打开。
-- 管理员客服入口使用 `role='ADMIN'` 且 `status='ACTIVE'` 的第一个管理员账号。
-- D 的客服收件箱可复用 `/api/chat/conversations`、`/api/chat/messages`、`/api/chat/send`，或在管理端外层增加筛选。
-
-## 五、数据库与并发设计
-
-| 表 | 用途 | 关键约束/索引 |
-|----|------|--------------|
-| `category` | 商品大类 | `uk_name` 保证分类名唯一 |
-| `item` | 商品/求购主体 | `idx_status`、`idx_category`、`idx_created` 支撑大厅筛选 |
-| `item_favorite` | 收藏关系 | `UNIQUE (user_id, item_id)` 防重复收藏，`idx_item` 支撑收藏统计 |
-| `chat_message` | 聊天消息 | `idx_conversation(conversation_id, created_at)` 查历史，`idx_receiver_unread(receiver_id, is_read)` 查未读 |
-
-并发处理：
-
-- 收藏切换先查现有记录，再插入/删除；并发重复插入由唯一索引兜底，捕获 `DuplicateKeyException` 后返回已收藏状态。
-- 浏览数使用单条 `UPDATE item SET view_count = view_count + 1` 原子累加。
-- 聊天不引入 WebSocket，使用前端 2.5 秒轮询，降低实现复杂度，满足课程演示场景。
-- 会话 ID 使用用户小 ID + 大 ID（如 `2_8`），不额外建会话表；会话列表由 `chat_message` 聚合生成。
-
-## 六、本地启动
-
-```bash
-# 1. 建库（会 DROP 重建；本机 MySQL 路径含空格时建议用 cmd）
-cmd /c '"C:\Program Files\MySQL\MySQL Server 9.6\bin\mysql.exe" -u root -p --default-character-set=utf8mb4 < "E:\Project\zhiyi-school\zhiyi_campus_init.sql"'
-
-# 2. 后端（MySQL 密码与 JWT 密钥通过环境变量 MYSQL_PASSWORD/JWT_SECRET 提供）
-cd zhiyi-campus/backend
+```powershell
+$env:MYSQL_PASSWORD = "<本机 MySQL 密码>"
+$env:JWT_SECRET = "<至少 32 字节的随机密钥>"
+$env:AI_API_KEY = "<AI 服务密钥>"
 mvn spring-boot:run
-
-# 3. 前端
-cd zhiyi-campus/frontend
-npm install
-npm run dev
 ```
 
-访问地址：
+`MYSQL_USERNAME`、`AI_API_URL` 和 `AI_MODEL` 也可按环境覆盖。不要提交 `.env`、终端历史或包含真实密钥的截图。
 
-- 后端：`http://localhost:8080`
-- 前端：`http://127.0.0.1:3000`
+## 六、验证记录
 
-测试账号：
+- `mvn -q test`：后端全部测试通过。
+- `npm run build`：前端生产构建通过。
+- 桌面浏览器：未登录引导、搜索框和首屏动画正常。
+- 390px 窄屏：无横向溢出，搜索栏、登录引导和按钮正常换行。
+- 本机现有数据库缺少最新版 `school` 表，未执行会覆盖数据的初始化脚本；联调前应先备份并使用项目 SQL 做增量升级。
 
-- 管理员：初始化后请在本地重置密码，不在文档中写明文口令
-- 普通用户：注册页自助注册
+## 七、依赖说明
 
-## 七、验证记录
-
-```bash
-mvn -q -DskipTests compile      # 后端编译通过
-mvn -q test                     # 后端测试通过
-npm install                     # 前端依赖安装完成
-npm run build                   # 前端生产构建通过
-npm test                        # 前端已有单测通过
-```
-
-联调检查：
-
-- `GET /api/category/list`：200
-- `GET /api/item/list?page=1&size=12`：200
-- `GET /api/item/search?keyword=iPad&page=1&size=12`：200
-- `GET /api/item/ranking?limit=10`：200
-- 管理员登录后 `GET /api/chat/unread-count`：200，返回 `0`
+- C9 最终应直接消费 A3 的 `emailVerified` 字段。当前主分支尚未提供该字段，因此使用已通过学校邮箱后缀校验的 `schoolEmail` 作为兼容判定。
+- C5 最终应消费 B8 的后台专题配置接口。当前主分支尚无该接口，因此保留前端时段配置。
+- C7 的链路数据复用 D3 已有的 `AdminLineageService` 聚合逻辑，普通入口额外增加本校可见性校验。
