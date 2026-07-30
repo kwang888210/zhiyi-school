@@ -29,6 +29,11 @@ public class ItemCardVO {
     private String coverImage;
     private List<String> aiTags;
     private String tradeLocation;
+    private String pickupLocation;
+    private String deliveryLocation;
+    private LocalDateTime deadlineTime;
+    /** >7天不展示，3-7天展示闹钟，3天内展示警告。 */
+    private String deadlineLabel;
     private String status;
     private Integer viewCount;
     private Long favoriteCount;

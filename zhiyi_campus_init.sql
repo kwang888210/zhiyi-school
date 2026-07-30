@@ -98,15 +98,18 @@ CREATE TABLE item (
     id              BIGINT          NOT NULL AUTO_INCREMENT  COMMENT '商品ID',
     publisher_id    BIGINT          NOT NULL                 COMMENT '发布者ID',
     school_id       BIGINT          NOT NULL                 COMMENT '所属学校ID（发布时从用户资料固化）',
-    type            VARCHAR(10)     NOT NULL                 COMMENT '类型：SELL出售/BUY求购',
+    type            VARCHAR(10)     NOT NULL                 COMMENT '类型：SELL出售/BUY求购/SWAP换物/ERRAND跑腿',
     title           VARCHAR(100)    NOT NULL                 COMMENT '商品标题',
     description     TEXT            NOT NULL                 COMMENT '商品描述',
     category_id     BIGINT          NOT NULL                 COMMENT '所属大类ID',
-    price           DECIMAL(10,2)   NOT NULL                 COMMENT '价格',
+    price           DECIMAL(10,2)   DEFAULT NULL             COMMENT '价格/跑腿悬赏；SWAP为空',
     images          TEXT            NOT NULL                 COMMENT '图片URL列表（JSON数组）',
     ai_tags         TEXT            DEFAULT NULL             COMMENT 'AI动态标签（JSON数组）',
     ai_reviewed     TINYINT(1)      NOT NULL DEFAULT 0       COMMENT 'AI是否已完成审核：0未审核/1已审核',
     trade_location  VARCHAR(255)    DEFAULT NULL             COMMENT '交易地点',
+    pickup_location VARCHAR(255)    DEFAULT NULL             COMMENT '跑腿取件地点',
+    delivery_location VARCHAR(255)  DEFAULT NULL             COMMENT '跑腿送达地点',
+    deadline_time   DATETIME        DEFAULT NULL             COMMENT '期望出手/跑腿截止时间',
     status          VARCHAR(20)     NOT NULL DEFAULT 'ON_SALE' COMMENT '状态：ON_SALE/PENDING/SOLD/OFF_SHELF',
     view_count      INT             NOT NULL DEFAULT 0       COMMENT '浏览次数',
     is_deleted      TINYINT(1)      NOT NULL DEFAULT 0       COMMENT '软删除标记：0正常/1已删除',
@@ -120,10 +123,30 @@ CREATE TABLE item (
     INDEX idx_school (school_id),
     INDEX idx_type (type),
     INDEX idx_created (created_at),
+    INDEX idx_type_deadline (school_id, type, deadline_time),
     CONSTRAINT fk_item_publisher  FOREIGN KEY (publisher_id) REFERENCES sys_user(id),
     CONSTRAINT fk_item_school     FOREIGN KEY (school_id)    REFERENCES school(id),
     CONSTRAINT fk_item_category   FOREIGN KEY (category_id)  REFERENCES category(id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='商品/需求表';
+
+CREATE TABLE event_topic (
+    id BIGINT NOT NULL AUTO_INCREMENT COMMENT '专题ID',
+    title VARCHAR(100) NOT NULL COMMENT '专题名称',
+    start_time DATETIME NOT NULL COMMENT '开始时间',
+    end_time DATETIME NOT NULL COMMENT '结束时间',
+    filter_type VARCHAR(10) DEFAULT NULL COMMENT '商品类型筛选',
+    filter_category_id BIGINT DEFAULT NULL COMMENT '分类筛选',
+    filter_tag VARCHAR(50) DEFAULT NULL COMMENT 'AI标签筛选',
+    banner_text VARCHAR(255) NOT NULL COMMENT 'Banner文案',
+    enabled TINYINT(1) NOT NULL DEFAULT 1 COMMENT '是否启用',
+    created_by BIGINT NOT NULL COMMENT '创建管理员',
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    PRIMARY KEY (id),
+    INDEX idx_topic_active (enabled, start_time, end_time),
+    CONSTRAINT fk_topic_category FOREIGN KEY (filter_category_id) REFERENCES category(id),
+    CONSTRAINT fk_topic_creator FOREIGN KEY (created_by) REFERENCES sys_user(id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='大事件专题配置';
 
 
 -- -----------------------------------------------------------

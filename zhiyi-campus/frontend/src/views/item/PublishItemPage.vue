@@ -21,6 +21,14 @@
                 <span class="t-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3M11 8v6M8 11h6"/></svg></span>
                 <span class="type-copy"><b>我要求购</b><small>发布需求，等卖家找上门</small></span>
               </button>
+              <button class="type-option type-option--swap" :class="{ selected: form.type === 'SWAP' }" type="button" role="radio" :aria-checked="form.type === 'SWAP'" @click="setType('SWAP')">
+                <span class="t-icon">🔄</span>
+                <span class="type-copy"><b>以物换物</b><small>用闲置交换另一件好物</small></span>
+              </button>
+              <button class="type-option type-option--errand" :class="{ selected: form.type === 'ERRAND' }" type="button" role="radio" :aria-checked="form.type === 'ERRAND'" @click="setType('ERRAND')">
+                <span class="t-icon">🏃</span>
+                <span class="type-copy"><b>帮带跑腿</b><small>发布校内取送任务</small></span>
+              </button>
             </div>
           </el-form-item>
 
@@ -49,9 +57,10 @@
               <p class="hint">小分类不用选，AI 会自动打标签</p>
             </el-form-item>
             <el-form-item prop="price" class="field">
-              <label for="publish-price">价格（元）<span class="req">*</span></label>
-              <input id="publish-price" v-model.number="form.price" class="input price-input" type="number" step="0.01" min="0.01">
-              <p class="hint">精确到分，最低 ¥0.01</p>
+              <label for="publish-price">{{ form.type === 'ERRAND' ? '悬赏' : '价格' }}（元）<span v-if="form.type !== 'SWAP'" class="req">*</span></label>
+              <input v-if="form.type !== 'SWAP'" id="publish-price" v-model.number="form.price" class="input price-input" type="number" step="0.01" :min="form.type === 'ERRAND' ? 1 : 0.01" :max="form.type === 'ERRAND' ? 20 : undefined">
+              <div v-else class="input disabled-price">换物不涉及钱包结算</div>
+              <p class="hint">{{ form.type === 'ERRAND' ? '悬赏范围 ¥1–20' : form.type === 'SWAP' ? '价格将保存为空' : '精确到分，最低 ¥0.01' }}</p>
             </el-form-item>
           </div>
 
@@ -79,6 +88,23 @@
             <div class="location-tags">
               <button v-for="location in locations" :key="location" class="tag" type="button" @click="form.tradeLocation = location">{{ location }}</button>
             </div>
+          </el-form-item>
+
+          <div v-if="form.type === 'ERRAND'" class="form-pair">
+            <el-form-item prop="pickupLocation" class="field">
+              <label for="pickup-location">取件地点 <span class="req">*</span></label>
+              <input id="pickup-location" v-model.trim="form.pickupLocation" class="input" maxlength="255" placeholder="如：南门快递站">
+            </el-form-item>
+            <el-form-item prop="deliveryLocation" class="field">
+              <label for="delivery-location">送达地点 <span class="req">*</span></label>
+              <input id="delivery-location" v-model.trim="form.deliveryLocation" class="input" maxlength="255" placeholder="如：3号宿舍楼">
+            </el-form-item>
+          </div>
+
+          <el-form-item prop="deadlineTime" class="field">
+            <label for="deadline-time">{{ form.type === 'ERRAND' ? '跑腿截止时间' : '期望出手截止时间' }} <span v-if="form.type === 'ERRAND'" class="req">*</span></label>
+            <input id="deadline-time" v-model="form.deadlineTime" class="input" type="datetime-local" :min="minimumDeadline">
+            <p class="hint">{{ form.type === 'ERRAND' ? '跑腿任务必须填写未来的截止时间' : '可选；临近截止时商品卡片会显示倒计时提醒' }}</p>
           </el-form-item>
 
           <div class="submit-bar">
@@ -141,7 +167,12 @@ const categoryOptions = computed(() =>
 const uploading = ref(false)
 const submitting = ref(false)
 const pageLoading = ref(false)
-const form = reactive({ type: 'SELL', title: '', description: '', categoryId: '', price: 1, images: [], tradeLocation: '' })
+const form = reactive({ type: 'SELL', title: '', description: '', categoryId: '', price: 1, images: [], tradeLocation: '', pickupLocation: '', deliveryLocation: '', deadlineTime: '' })
+const minimumDeadline = computed(() => {
+  const d = new Date(Date.now() + 60 * 1000)
+  d.setMinutes(d.getMinutes() - d.getTimezoneOffset())
+  return d.toISOString().slice(0, 16)
+})
 const editMode = computed(() => Boolean(route.params.id))
 const submitButtonText = computed(() => {
   if (uploading.value) return '图片上传中'
@@ -162,8 +193,19 @@ const rules = {
   type: [{ required: true, message: '请选择发布类型', trigger: 'change' }],
   title: [{ required: true, message: '请输入商品标题', trigger: 'blur' }, { min: 2, max: 50, message: '标题需为2-50字', trigger: 'blur' }],
   categoryId: [{ required: true, message: '请选择所属大类', trigger: 'change' }],
-  price: [{ required: true, type: 'number', min: 0.01, message: '请输入有效价格', trigger: 'change' }],
+  price: [{ validator: (_rule, value, callback) => {
+    if (form.type === 'SWAP') return callback()
+    if (typeof value !== 'number' || value < (form.type === 'ERRAND' ? 1 : 0.01) || (form.type === 'ERRAND' && value > 20)) return callback(new Error(form.type === 'ERRAND' ? '悬赏须在 ¥1–20 之间' : '请输入有效价格'))
+    callback()
+  }, trigger: 'change' }],
   tradeLocation: [{ required: true, message: '请输入交易地点', trigger: 'blur' }],
+  pickupLocation: [{ validator: (_rule, value, callback) => form.type !== 'ERRAND' || value ? callback() : callback(new Error('请输入取件地点')), trigger: 'blur' }],
+  deliveryLocation: [{ validator: (_rule, value, callback) => form.type !== 'ERRAND' || value ? callback() : callback(new Error('请输入送达地点')), trigger: 'blur' }],
+  deadlineTime: [{ validator: (_rule, value, callback) => {
+    if (form.type === 'ERRAND' && !value) return callback(new Error('请选择跑腿截止时间'))
+    if (value && new Date(value) <= new Date()) return callback(new Error('截止时间必须晚于当前时间'))
+    callback()
+  }, trigger: 'change' }],
   description: [{ required: true, message: '请输入商品描述', trigger: 'blur' }, { max: 500, message: '描述不能超过500字', trigger: 'blur' }],
   images: [{ type: 'array', required: true, min: 1, message: '请至少上传1张图片', trigger: 'change' }],
 }
@@ -182,10 +224,20 @@ async function fetchOwnItem() {
       price: Number(item.price),
       images: Array.isArray(item.images) ? item.images : [],
       tradeLocation: item.tradeLocation || '',
+      pickupLocation: item.pickupLocation || '',
+      deliveryLocation: item.deliveryLocation || '',
+      deadlineTime: item.deadlineTime ? item.deadlineTime.slice(0, 16) : '',
     })
   } finally { pageLoading.value = false }
 }
-function setType(type) { form.type = type; formRef.value?.validateField('type') }
+function setType(type) {
+  form.type = type
+  if (type === 'SWAP') form.price = null
+  else if (type === 'ERRAND' && (!form.price || form.price > 20)) form.price = 5
+  else if (form.price == null) form.price = 1
+  formRef.value?.clearValidate(['price', 'pickupLocation', 'deliveryLocation', 'deadlineTime'])
+  formRef.value?.validateField('type')
+}
 function validateImage(file) {
   if (!IMAGE_TYPES.includes(file.type)) { ElMessage.error('仅支持 jpg、png、webp 图片'); return false }
   if (file.size > MAX_IMAGE_SIZE) { ElMessage.error('单张图片不能超过 5MB'); return false }
@@ -212,8 +264,8 @@ async function handleSubmit() {
   submitting.value = true
   try {
     const res = editMode.value
-      ? await updateItem(route.params.id, { ...form })
-      : await publishItem({ ...form })
+      ? await updateItem(route.params.id, { ...form, deadlineTime: form.deadlineTime || null })
+      : await publishItem({ ...form, deadlineTime: form.deadlineTime || null })
     if (!editMode.value) localStorage.removeItem('zhiyi-publish-draft')
     ElMessage.success(editMode.value ? '修改成功' : '发布成功，已进入商品大厅')
     router.push(`/item/${res.data.id}`)
@@ -249,6 +301,8 @@ onMounted(async () => {
 .type-copy small { display: block; font-size: 13px; color: var(--ink-soft); }
 .type-option.selected { background: var(--primary); color: var(--white); box-shadow: var(--shadow-m); }
 .type-option--buy.selected { background: var(--blue); }
+.type-option--swap.selected { background: #8B5CF6; }
+.type-option--errand.selected { background: var(--green); }
 .type-option.selected small { color: rgba(255,255,255,.85); }
 .type-option.selected .t-icon { background: var(--yellow); }
 .type-option.selected::after { content: '✓'; position: absolute; top: 8px; right: 12px; font-weight: 900; font-size: 18px; }
@@ -260,6 +314,7 @@ onMounted(async () => {
 .hint { font-size: 12px; color: var(--ink-soft); margin-top: 5px; }
 .form-pair { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
 .price-input { color: var(--primary); font-size: 17px; font-weight: 900; }
+.disabled-price { color: var(--ink-soft); background: var(--paper-deep); cursor: not-allowed; }
 .upload-grid { width: 100%; display: grid; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: 12px; }
 .upload-thumb, .upload-control { aspect-ratio: 1; min-width: 0; }
 .upload-thumb { border: var(--bw) solid var(--ink); border-radius: var(--r-s); position: relative; overflow: hidden; background: var(--paper-deep); }

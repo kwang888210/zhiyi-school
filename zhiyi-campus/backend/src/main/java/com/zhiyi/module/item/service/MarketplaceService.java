@@ -30,6 +30,7 @@ import org.springframework.util.StringUtils;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -164,6 +165,38 @@ public class MarketplaceService {
     public ItemCardVO getOwnItem(Long userId, Long itemId) {
         Item item = requireOwnItem(userId, itemId);
         return toItemCards(List.of(item), userId).get(0);
+    }
+
+    public List<ItemCardVO> listErrands(Long currentUserId) {
+        Long schoolId = requireUserSchoolId(currentUserId);
+        List<Item> items = itemMapper.selectList(new LambdaQueryWrapper<Item>()
+                .eq(Item::getSchoolId, schoolId)
+                .eq(Item::getType, "ERRAND")
+                .eq(Item::getStatus, "ON_SALE")
+                .gt(Item::getDeadlineTime, LocalDateTime.now())
+                .orderByAsc(Item::getDeadlineTime));
+        return toItemCards(items, currentUserId);
+    }
+
+    public List<ItemCardVO> listSwapMatches(Long currentUserId) {
+        Long schoolId = requireUserSchoolId(currentUserId);
+        List<Item> mine = itemMapper.selectList(new LambdaQueryWrapper<Item>()
+                .eq(Item::getPublisherId, currentUserId)
+                .eq(Item::getSchoolId, schoolId)
+                .eq(Item::getType, "SWAP")
+                .eq(Item::getStatus, "ON_SALE"));
+        if (mine.isEmpty()) {
+            return List.of();
+        }
+        Set<Long> categoryIds = mine.stream().map(Item::getCategoryId).filter(Objects::nonNull).collect(Collectors.toSet());
+        List<Item> matches = itemMapper.selectList(new LambdaQueryWrapper<Item>()
+                .eq(Item::getSchoolId, schoolId)
+                .eq(Item::getType, "SWAP")
+                .eq(Item::getStatus, "ON_SALE")
+                .ne(Item::getPublisherId, currentUserId)
+                .in(!categoryIds.isEmpty(), Item::getCategoryId, categoryIds)
+                .orderByDesc(Item::getCreatedAt));
+        return toItemCards(matches, currentUserId);
     }
 
     public void requireVisibleItem(Long userId, Long itemId) {
@@ -533,6 +566,10 @@ public class MarketplaceService {
             vo.setCoverImage(images.isEmpty() ? "" : images.get(0));
             vo.setAiTags(parseJsonArray(item.getAiTags()));
             vo.setTradeLocation(item.getTradeLocation());
+            vo.setPickupLocation(item.getPickupLocation());
+            vo.setDeliveryLocation(item.getDeliveryLocation());
+            vo.setDeadlineTime(item.getDeadlineTime());
+            vo.setDeadlineLabel(deadlineLabel(item.getDeadlineTime()));
             vo.setStatus(item.getStatus());
             vo.setViewCount(item.getViewCount());
             vo.setFavoriteCount(favoriteCounts.getOrDefault(item.getId(), 0L));
@@ -541,6 +578,14 @@ public class MarketplaceService {
             vo.setUpdatedAt(item.getUpdatedAt());
             return vo;
         }).toList();
+    }
+
+    static String deadlineLabel(LocalDateTime deadline) {
+        if (deadline == null) return null;
+        Duration remaining = Duration.between(LocalDateTime.now(), deadline);
+        if (remaining.compareTo(Duration.ofDays(7)) > 0) return null;
+        // 允许同一请求内取 now 产生的毫秒级误差，确保“正好 3 天”仍落在 3-7 天区间。
+        return remaining.compareTo(Duration.ofDays(3).minusSeconds(1)) >= 0 ? "⏰" : "⚠️";
     }
 
     private String proximityRelation(SysUser viewer, SysUser publisher) {

@@ -161,6 +161,33 @@
             {{ pwdForm.result }}
           </div>
         </div>
+
+        <div class="tool-card card topic-card">
+          <h3 class="tool-card__title">🎯 大事件专题</h3>
+          <p class="tool-card__desc muted">配置专题生效时段、商品筛选规则和首页 Banner 文案。</p>
+          <div class="field"><label>专题名称</label><input v-model.trim="topicForm.title" class="input" maxlength="100" placeholder="如：毕业季闲置循环"></div>
+          <div class="form-pair">
+            <div class="field"><label>开始时间</label><input v-model="topicForm.startTime" class="input" type="datetime-local"></div>
+            <div class="field"><label>结束时间</label><input v-model="topicForm.endTime" class="input" type="datetime-local"></div>
+          </div>
+          <div class="form-pair">
+            <div class="field"><label>商品类型</label><AppSelect v-model="topicForm.filterType" :options="TOPIC_TYPE_OPTIONS" placeholder="全部类型" /></div>
+            <div class="field"><label>商品分类</label><AppSelect v-model="topicForm.filterCategoryId" :options="topicCategoryOptions" placeholder="全部分类" /></div>
+          </div>
+          <div class="field"><label>AI 标签（可选）</label><input v-model.trim="topicForm.filterTag" class="input" maxlength="50" placeholder="如：毕业季"></div>
+          <div class="field"><label>Banner 文案</label><textarea v-model.trim="topicForm.bannerText" class="textarea" maxlength="255" placeholder="展示给用户的专题文案"></textarea></div>
+          <label class="topic-enabled"><input v-model="topicForm.enabled" type="checkbox"> 启用专题</label>
+          <div class="tool-card__actions">
+            <button class="btn btn--sm btn--primary" :disabled="topicForm.submitting" @click="saveTopic">{{ topicForm.id ? '保存修改' : '创建专题' }}</button>
+            <button v-if="topicForm.id" class="btn btn--sm" @click="resetTopicForm">取消编辑</button>
+          </div>
+          <div class="topic-list">
+            <div v-for="topic in topics" :key="topic.id" class="topic-row card card--flat">
+              <div><strong>{{ topic.title }}</strong><div class="muted topic-time">{{ formatDateTime(topic.startTime) }} — {{ formatDateTime(topic.endTime) }}</div></div>
+              <div class="topic-actions"><span class="badge" :class="topic.enabled ? 'badge--ok' : 'badge--muted'">{{ topic.enabled ? '启用' : '停用' }}</span><button class="btn btn--sm" @click="editTopic(topic)">编辑</button><button class="btn btn--sm btn--danger" @click="removeTopic(topic)">删除</button></div>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -205,11 +232,49 @@
 </template>
 
 <script setup>
-import { reactive } from 'vue'
+import { computed, onMounted, reactive, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import AppSelect from '@/components/common/AppSelect.vue'
 import DefaultLayout from '@/components/layout/DefaultLayout.vue'
-import { forceOffShelf, resetUserPassword, searchUsers, searchAdminItems, getItemLineage } from '@/api/admin'
+import { createEventTopic, deleteEventTopic, forceOffShelf, getEventTopics, resetUserPassword, searchUsers, searchAdminItems, getItemLineage, updateEventTopic } from '@/api/admin'
+import { getCategories } from '@/api/item'
+
+const TOPIC_TYPE_OPTIONS = [
+  { label: '全部类型', value: '' }, { label: '出售', value: 'SELL' }, { label: '求购', value: 'BUY' },
+  { label: '以物换物', value: 'SWAP' }, { label: '帮带跑腿', value: 'ERRAND' },
+]
+const topicCategories = ref([])
+const topicCategoryOptions = computed(() => [{ label: '全部分类', value: '' }, ...topicCategories.value.map(c => ({ label: c.name, value: c.id }))])
+const topics = ref([])
+const emptyTopic = () => ({ id: null, title: '', startTime: '', endTime: '', filterType: '', filterCategoryId: '', filterTag: '', bannerText: '', enabled: true, submitting: false })
+const topicForm = reactive(emptyTopic())
+
+function resetTopicForm() { Object.assign(topicForm, emptyTopic()) }
+function editTopic(topic) {
+  Object.assign(topicForm, { ...topic, startTime: topic.startTime?.slice(0, 16) || '', endTime: topic.endTime?.slice(0, 16) || '', filterCategoryId: topic.filterCategoryId || '', submitting: false })
+}
+function formatDateTime(value) { return value ? value.replace('T', ' ').slice(0, 16) : '' }
+async function loadTopics() { const res = await getEventTopics(); topics.value = res.data || [] }
+async function saveTopic() {
+  if (!topicForm.title || !topicForm.startTime || !topicForm.endTime || !topicForm.bannerText) { ElMessage.warning('请填写专题名称、时间段和 Banner 文案'); return }
+  if (new Date(topicForm.endTime) <= new Date(topicForm.startTime)) { ElMessage.warning('结束时间必须晚于开始时间'); return }
+  topicForm.submitting = true
+  const data = { ...topicForm, filterType: topicForm.filterType || null, filterCategoryId: topicForm.filterCategoryId || null, filterTag: topicForm.filterTag || null }
+  delete data.id; delete data.submitting
+  try {
+    if (topicForm.id) await updateEventTopic(topicForm.id, data); else await createEventTopic(data)
+    ElMessage.success(topicForm.id ? '专题已更新' : '专题已创建'); resetTopicForm(); await loadTopics()
+  } finally { topicForm.submitting = false }
+}
+async function removeTopic(topic) {
+  try { await ElMessageBox.confirm(`确认删除专题「${topic.title}」？`, '删除专题', { type: 'warning' }) } catch { return }
+  await deleteEventTopic(topic.id); ElMessage.success('专题已删除'); await loadTopics()
+}
+
+onMounted(async () => {
+  const [, categories] = await Promise.all([loadTopics(), getCategories()])
+  topicCategories.value = categories.data || []
+})
 
 // ---- 强制下架 ----
 const STATUS_FILTER_OPTIONS = [
@@ -424,8 +489,19 @@ function avatarColor(id) {
   grid-template-columns: repeat(2, 1fr);
   gap: 24px;
 }
+.topic-card { grid-column: 1 / -1; }
+.form-pair { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.field { margin-bottom: 14px; }
+.field label { display: block; font-weight: 700; font-size: 13px; margin-bottom: 6px; }
+.topic-enabled { display: inline-flex; align-items: center; gap: 7px; font-weight: 700; }
+.topic-list { display: flex; flex-direction: column; gap: 8px; margin-top: 20px; }
+.topic-row { display: flex; justify-content: space-between; align-items: center; gap: 16px; padding: 12px 14px; }
+.topic-time { font-size: 12px; margin-top: 3px; }
+.topic-actions { display: flex; align-items: center; gap: 8px; }
 @media (max-width: 768px) {
   .tool-grid { grid-template-columns: 1fr; }
+  .form-pair { grid-template-columns: 1fr; }
+  .topic-row { align-items: flex-start; flex-direction: column; }
 }
 
 .tool-card {
