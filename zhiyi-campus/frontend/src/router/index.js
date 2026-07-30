@@ -16,7 +16,7 @@ const routes = [
     path: '/ranking',
     name: 'Ranking',
     component: () => import('@/views/ranking/RankingPage.vue'),
-    meta: { title: '近期爆款榜 - 智易校园' },
+    meta: { title: '近期爆款榜 - 智易校园', requireAuth: true },
   },
   {
     path: '/login',
@@ -36,7 +36,7 @@ const routes = [
     path: '/item/:id',
     name: 'ItemDetail',
     component: () => import('@/views/item/ItemDetailPage.vue'),
-    meta: { title: '商品详情' },
+    meta: { title: '商品详情', requireAuth: true },
   },
   {
     path: '/item/:id/edit',
@@ -49,14 +49,6 @@ const routes = [
     name: 'PublishItem',
     component: () => import('@/views/item/PublishItemPage.vue'),
     meta: { title: '发布商品', requireAuth: true },
-  },
-
-  // ── 排行榜（模块三）──
-  {
-    path: '/ranking',
-    name: 'Ranking',
-    component: () => import('@/views/ranking/RankingPage.vue'),
-    meta: { title: '近期爆款榜 - 智易校园' },
   },
 
   // ── 用户中心（模块一）──

@@ -68,7 +68,7 @@ public class UserController {
         return Result.ok(userService.getSellerDetail(viewerId, id));
     }
 
-    /** 伪熟人信任标签（A5）：当前登录用户视角看目标用户 → ["同学院","同级","同楼"] */
+    /** 伪熟人信任标签（A5）：当前登录用户视角看目标用户 → ["同学院","同级","同校区","同楼"] */
     @GetMapping("/{id}/relation")
     public Result<List<String>> relation(@RequestAttribute("userId") Long viewerId,
                                          @PathVariable Long id) {

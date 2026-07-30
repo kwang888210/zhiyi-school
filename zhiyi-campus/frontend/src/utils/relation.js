@@ -1,4 +1,4 @@
-export const KNOWN_RELATION_TAGS = Object.freeze(['同学院', '同级', '同楼'])
+export const KNOWN_RELATION_TAGS = Object.freeze(['同学院', '同级', '同校区', '同楼'])
 
 /**
  * 关系标签按产品约定排序、去重，同时保留后端未来新增的标签。

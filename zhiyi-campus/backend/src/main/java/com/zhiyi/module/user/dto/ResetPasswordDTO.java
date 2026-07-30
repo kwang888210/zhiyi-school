@@ -1,6 +1,7 @@
 package com.zhiyi.module.user.dto;
 
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 import lombok.Data;
 
@@ -9,6 +10,9 @@ import lombok.Data;
  */
 @Data
 public class ResetPasswordDTO {
+
+    @NotNull(message = "请选择所属学校")
+    private Long schoolId;
 
     @NotBlank(message = "学号不能为空")
     private String studentId;

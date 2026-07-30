@@ -30,7 +30,7 @@
           <div>
             <span class="trending-panel__eyebrow">AI TAG TOP 10</span>
             <h2 id="trending-title">热门搜索</h2>
-            <p>统计全部在售商品的高频 AI 标签</p>
+            <p>统计本校在售商品的高频 AI 标签</p>
           </div>
         </div>
         <div v-if="trendingTags.length" class="trending-tags">
@@ -88,6 +88,12 @@
               </div>
               <div class="seller-row">
                 <span>{{ entry.item.publisherNickname || '同学' }}</span>
+                <span v-if="entry.item.publisherVerified" class="seller-chip seller-chip--verified">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 4 4L19 6"/></svg>
+                  已认证
+                </span>
+                <span v-if="entry.item.dormitoryRelation === 'SAME_BUILDING'" class="seller-chip">本楼</span>
+                <span v-else-if="entry.item.dormitoryRelation === 'SAME_CAMPUS'" class="seller-chip seller-chip--campus">本校区</span>
                 <LevelBadge :level="entry.item.publisherLevel || 1" />
               </div>
             </div>
@@ -110,7 +116,11 @@
               </span>
               <span class="ranking-row__main">
                 <strong>{{ item.title }}</strong>
-                <small>{{ item.publisherNickname || '同学' }} · 浏览 {{ item.viewCount || 0 }}</small>
+                <small>
+                  {{ item.publisherNickname || '同学' }}
+                  <span v-if="item.publisherVerified" class="inline-verified">已认证</span>
+                  · 浏览 {{ item.viewCount || 0 }}
+                </small>
                 <AiTagList :tags="item.aiTags" :limit="2" compact @select="goTag" />
               </span>
               <PriceTag :value="item.price" font-size="21px" />
@@ -268,6 +278,11 @@ onMounted(fetchRanking)
 .favorite-count { display: inline-flex; align-items: center; gap: 5px; color: var(--red); font-size: 13px; font-weight: 700; }
 .favorite-count svg { width: 17px; height: 17px; }
 .seller-row { display: flex; align-items: center; gap: 8px; margin-top: 12px; padding-top: 10px; border-top: 1.5px dashed #E0D6C2; color: var(--ink-soft); font-size: 13px; }
+.seller-chip { display: inline-flex; align-items: center; gap: 3px; padding: 2px 6px; border: 1px solid var(--ink); border-radius: 5px; background: var(--yellow); color: var(--ink); font-size: 10px; font-weight: 900; white-space: nowrap; }
+.seller-chip svg { width: 11px; height: 11px; }
+.seller-chip--verified { background: #D6F2DF; }
+.seller-chip--campus { background: #DCEEFF; }
+.inline-verified { margin-left: 4px; padding: 1px 4px; border: 1px solid var(--ink); border-radius: 4px; background: #D6F2DF; color: var(--ink); font-size: 9.5px; font-weight: 900; }
 
 .ranking-board { border: var(--bw) solid var(--ink); border-radius: var(--r-m); background: var(--white); box-shadow: var(--shadow-m); overflow: hidden; }
 .ranking-board__head { display: flex; align-items: center; justify-content: space-between; padding: 16px 20px; border-bottom: var(--bw) solid var(--ink); background: var(--yellow); }

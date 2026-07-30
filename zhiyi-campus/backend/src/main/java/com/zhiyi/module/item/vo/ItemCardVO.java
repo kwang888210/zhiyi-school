@@ -16,6 +16,9 @@ public class ItemCardVO {
     private String publisherNickname;
     private Integer publisherLevel;
     private String publisherLevelTitle;
+    private Boolean publisherVerified;
+    /** SAME_BUILDING / SAME_CAMPUS / null */
+    private String dormitoryRelation;
     private String type;
     private String title;
     private String description;

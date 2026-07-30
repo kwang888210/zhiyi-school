@@ -55,7 +55,7 @@ public class AuthService {
 
     /**
      * 注册（需求 1.1）
-     * 并发安全：唯一性靠 DB 的 uk_student_id 唯一索引兜底 —— 先查后插在并发注册时存在竞态，
+     * 并发安全：唯一性靠 DB 的 uk_school_student 联合唯一索引兜底 —— 先查后插在并发注册时存在竞态，
      * 捕获 DuplicateKeyException 统一转为业务提示。
      */
     @Transactional(rollbackFor = Exception.class)
@@ -65,10 +65,7 @@ public class AuthService {
         }
         String studentId = StudentIdNormalizer.normalize(dto.getStudentId());
         // 学校必填且必须启用（创新功能 A2：注册即归属学校）
-        School school = schoolService.getActiveSchool(dto.getSchoolId());
-        if (school == null) {
-            throw new BusinessException(ResultCode.BAD_REQUEST, "请选择有效的学校");
-        }
+        School school = requireActiveSchool(dto.getSchoolId());
         // 学校邮箱可选：无需验证码，填入时只校验邮箱后缀与学校是否匹配。
         String schoolEmail = schoolService.normalizeAndValidateEmail(dto.getSchoolEmail(), school);
 
@@ -76,12 +73,13 @@ public class AuthService {
         // 先查提示更友好（非并发场景直接命中）；并发窗口由唯一索引兜底
         SysUser exists = userMapper.selectOne(Wrappers.<SysUser>lambdaQuery()
                 .select(SysUser::getId, SysUser::getStatus)
+                .eq(SysUser::getSchoolId, school.getId())
                 .eq(SysUser::getStudentId, studentId));
         if (exists != null) {
             if ("CANCELLED".equals(exists.getStatus())) {
-                throw new BusinessException(ResultCode.USER_CANCELLED, "该学号的账户已注销，如需恢复请联系管理员");
+                throw new BusinessException(ResultCode.USER_CANCELLED, "该学号在当前学校的账户已注销，如需恢复请联系管理员");
             }
-            throw new BusinessException(ResultCode.STUDENT_ID_EXISTS, "该学号已注册，请直接登录或找回密码");
+            throw new BusinessException(ResultCode.STUDENT_ID_EXISTS, "该学号已在当前学校注册，请直接登录或找回密码");
         }
 
         SysUser user = new SysUser();
@@ -103,7 +101,7 @@ public class AuthService {
         try {
             userMapper.insert(user);
         } catch (DuplicateKeyException e) {
-            throw new BusinessException(ResultCode.STUDENT_ID_EXISTS, "该学号已注册，请直接登录或找回密码");
+            throw new BusinessException(ResultCode.STUDENT_ID_EXISTS, "该学号已在当前学校注册，请直接登录或找回密码");
         }
 
         String token = jwtUtils.generateToken(
@@ -117,15 +115,18 @@ public class AuthService {
     @Transactional(rollbackFor = Exception.class)
     public LoginVO login(LoginDTO dto) {
         String studentId = StudentIdNormalizer.normalize(dto.getStudentId());
+        School school = requireActiveSchool(dto.getSchoolId());
+        String loginKey = accountKey(school.getId(), studentId);
         // 失败限流：BCrypt 校验开销大，先挡住暴力尝试
-        if (loginAttemptService.isLocked(studentId)) {
+        if (loginAttemptService.isLocked(loginKey)) {
             throw new BusinessException(ResultCode.LOGIN_LOCKED);
         }
 
         SysUser user = userMapper.selectOne(Wrappers.<SysUser>lambdaQuery()
+                .eq(SysUser::getSchoolId, school.getId())
                 .eq(SysUser::getStudentId, studentId));
         if (user == null || !passwordEncoder.matches(dto.getPassword(), user.getPassword())) {
-            loginAttemptService.recordFailure(studentId);
+            loginAttemptService.recordFailure(loginKey);
             // 不区分「用户不存在」与「密码错误」，防止学号枚举
             throw new BusinessException(ResultCode.PASSWORD_ERROR, "学号或密码错误");
         }
@@ -155,19 +156,21 @@ public class AuthService {
             userStateCache.invalidateAfterCommit(user.getId());
         }
 
-        loginAttemptService.reset(studentId);
+        loginAttemptService.reset(loginKey);
         String token = jwtUtils.generateToken(
                 user.getId(), user.getRole(), user.getTokenVersion());
-        return new LoginVO(token, UserVO.from(user));
+        return new LoginVO(token, UserVO.from(user, school.getName()));
     }
 
     /**
      * 获取密保问题（需求 1.3 步骤 2）
      */
-    public String getSecurityQuestion(String studentId) {
+    public String getSecurityQuestion(Long schoolId, String studentId) {
         studentId = StudentIdNormalizer.normalize(studentId);
+        School school = requireActiveSchool(schoolId);
         SysUser user = userMapper.selectOne(Wrappers.<SysUser>lambdaQuery()
                 .select(SysUser::getId, SysUser::getSecurityQuestion, SysUser::getStatus)
+                .eq(SysUser::getSchoolId, school.getId())
                 .eq(SysUser::getStudentId, studentId));
         if (user == null) {
             throw new BusinessException(ResultCode.USER_NOT_FOUND, "该学号尚未注册");
@@ -188,13 +191,15 @@ public class AuthService {
             throw new BusinessException(ResultCode.BAD_REQUEST, "两次输入的密码不一致");
         }
         String studentId = StudentIdNormalizer.normalize(dto.getStudentId());
+        School school = requireActiveSchool(dto.getSchoolId());
         // 密保答案验证也走失败限流，防止暴力猜答案
-        String lockKey = "reset:" + studentId;
+        String lockKey = "reset:" + accountKey(school.getId(), studentId);
         if (loginAttemptService.isLocked(lockKey)) {
             throw new BusinessException(ResultCode.LOGIN_LOCKED, "尝试次数过多，请稍后再试");
         }
 
         SysUser user = userMapper.selectOne(Wrappers.<SysUser>lambdaQuery()
+                .eq(SysUser::getSchoolId, school.getId())
                 .eq(SysUser::getStudentId, studentId));
         if (user == null) {
             throw new BusinessException(ResultCode.USER_NOT_FOUND, "该学号尚未注册");
@@ -239,5 +244,17 @@ public class AuthService {
     /** 密保答案归一化：去首尾空格 + 转小写 */
     private String normalizeAnswer(String answer) {
         return answer == null ? "" : answer.trim().toLowerCase();
+    }
+
+    private School requireActiveSchool(Long schoolId) {
+        School school = schoolService.getActiveSchool(schoolId);
+        if (school == null) {
+            throw new BusinessException(ResultCode.BAD_REQUEST, "请选择有效的学校");
+        }
+        return school;
+    }
+
+    private String accountKey(Long schoolId, String studentId) {
+        return schoolId + ":" + studentId;
     }
 }

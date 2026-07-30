@@ -25,6 +25,9 @@ public class UpdateProfileDTO {
     private String schoolEmail;
 
     // ---- 模块一创新功能 A4：自愿补全的信任资料（全部可选）----
+    @Size(max = 50, message = "校区最长 50 字")
+    private String campus;
+
     @Size(max = 50, message = "学院最长 50 字")
     private String college;
 

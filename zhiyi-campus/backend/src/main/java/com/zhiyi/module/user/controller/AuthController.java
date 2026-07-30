@@ -8,6 +8,7 @@ import com.zhiyi.module.user.service.AuthService;
 import com.zhiyi.module.user.vo.LoginVO;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
 import lombok.RequiredArgsConstructor;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
@@ -20,7 +21,7 @@ import java.util.Map;
  *
  * POST /api/auth/register           用户注册
  * POST /api/auth/login              用户登录
- * GET  /api/auth/security-question  获取密保问题（?studentId=xxx）
+ * GET  /api/auth/security-question  获取密保问题（?schoolId=1&studentId=xxx）
  * GET  /api/auth/security-questions 预设密保问题列表（注册页下拉用）
  * POST /api/auth/reset-password     验证密保并重置密码
  */
@@ -44,8 +45,9 @@ public class AuthController {
 
     @GetMapping("/security-question")
     public Result<Map<String, String>> securityQuestion(
+            @RequestParam @NotNull(message = "请选择所属学校") Long schoolId,
             @RequestParam @NotBlank(message = "学号不能为空") String studentId) {
-        return Result.ok(Map.of("question", authService.getSecurityQuestion(studentId)));
+        return Result.ok(Map.of("question", authService.getSecurityQuestion(schoolId, studentId)));
     }
 
     @GetMapping("/security-questions")
