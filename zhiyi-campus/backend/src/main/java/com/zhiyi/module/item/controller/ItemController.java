@@ -103,6 +103,16 @@ public class ItemController {
         return Result.ok(marketplaceService.ranking(limit, userId));
     }
 
+    @GetMapping("/swap-matches")
+    public Result<List<ItemCardVO>> swapMatches(@RequestAttribute("userId") Long userId) {
+        return Result.ok(marketplaceService.listSwapMatches(userId));
+    }
+
+    @GetMapping("/errands")
+    public Result<List<ItemCardVO>> errands(@RequestAttribute("userId") Long userId) {
+        return Result.ok(marketplaceService.listErrands(userId));
+    }
+
     @GetMapping("/ranking/tags")
     public Result<List<AiTagTrendVO>> trendingAiTags(@RequestParam(defaultValue = "10") int limit,
                                                      @RequestAttribute("userId") Long userId) {

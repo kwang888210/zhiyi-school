@@ -13,7 +13,7 @@ public class Item {
     private Long publisherId;
     /** 发布时固化发布者所属学校，用于大厅、搜索和排行的数据隔离。 */
     private Long schoolId;
-    private String type;            // SELL / BUY
+    private String type;            // SELL / BUY / SWAP / ERRAND
     private String title;
     private String description;
     private Long categoryId;
@@ -22,6 +22,9 @@ public class Item {
     private String aiTags;          // JSON 数组
     private Boolean aiReviewed;
     private String tradeLocation;
+    private String pickupLocation;
+    private String deliveryLocation;
+    private LocalDateTime deadlineTime;
     private String status;          // ON_SALE / PENDING / SOLD / OFF_SHELF
     private Integer viewCount;
     @TableLogic

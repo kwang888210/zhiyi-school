@@ -17,7 +17,7 @@
             <div class="gallery__main" :class="phClass(item.id)">
               <img v-if="activeImage" :src="activeImage" :alt="item.title" />
               <span class="badge gallery-state" :class="item.type === 'BUY' ? 'badge--buy' : 'badge--sell'">
-                {{ item.type === 'BUY' ? '求购' : '出售' }}
+                {{ itemTypeLabel(item.type) }} <span v-if="item.deadlineLabel">{{ item.deadlineLabel }}</span>
               </span>
               <button v-if="item.images?.length > 1" class="gallery__nav gallery__nav--prev" aria-label="上一张" @click="switchImage(-1)">‹</button>
               <button v-if="item.images?.length > 1" class="gallery__nav gallery__nav--next" aria-label="下一张" @click="switchImage(1)">›</button>
@@ -39,15 +39,16 @@
           <div class="info-panel rise rise-1">
             <div class="info-head">
               <span class="badge" :class="item.type === 'BUY' ? 'badge--buy' : 'badge--sell'">
-                {{ item.type === 'BUY' ? '求购' : '出售' }}
+                {{ itemTypeLabel(item.type) }}
               </span>
               <h1>{{ item.title }}</h1>
               <span class="badge" :class="statusBadge(item.status)">{{ statusText(item.status) }}</span>
             </div>
 
             <div class="price-strip">
-              <PriceTag :value="item.price" font-size="40px" />
-              <span class="escrow">平台担保 · 确认收货后打款</span>
+              <strong v-if="item.type === 'SWAP'" class="price">以物换物</strong>
+              <PriceTag v-else :value="item.price" font-size="40px" />
+              <span class="escrow">{{ item.type === 'SELL' ? '平台担保 · 确认收货后打款' : '双方沟通后线下完成' }}</span>
             </div>
 
             <div class="meta-grid">
@@ -65,6 +66,12 @@
               </div>
               <div class="meta-row">
                 <span class="lab">交易地点</span><strong>{{ item.tradeLocation || '待沟通' }}</strong>
+              </div>
+              <div v-if="item.type === 'ERRAND'" class="meta-row">
+                <span class="lab">取送路线</span><strong>{{ item.pickupLocation }} → {{ item.deliveryLocation }}</strong>
+              </div>
+              <div v-if="item.deadlineTime" class="meta-row">
+                <span class="lab">截止时间</span><strong>{{ formatDate(item.deadlineTime) }} {{ item.deadlineLabel || '' }}</strong>
               </div>
               <div class="meta-row">
                 <span class="lab">发布时间</span><span>{{ formatDate(item.createdAt) }}</span>
@@ -124,7 +131,7 @@
                   {{ item.type === 'BUY' ? '我要出售' : '联系卖家' }}
                 </button>
                 <button
-                  v-if="item.type !== 'BUY'"
+              v-if="item.type === 'SELL'"
                   class="btn btn--primary"
                   :disabled="item.status !== 'ON_SALE' || buyLoading"
                   @click="handleBuy"
@@ -245,6 +252,10 @@ function statusText(status) {
 
 function statusBadge(status) {
   return STATUS_BADGE[status] || 'badge--muted'
+}
+
+function itemTypeLabel(type) {
+  return { SELL: '出售', BUY: '求购', SWAP: '换物', ERRAND: '跑腿' }[type] || type
 }
 
 function formatDate(value) {
