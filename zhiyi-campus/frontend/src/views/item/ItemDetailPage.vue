@@ -79,6 +79,10 @@
               <div class="seller-card__info">
                 <div class="seller-card__name">
                   {{ item.publisherNickname || '同学' }}
+                  <span v-if="item.publisherVerified" class="seller-card__verified" title="已填写本校邮箱">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 4 4L19 6"/></svg>
+                    已认证
+                  </span>
                   <LevelBadge :level="item.publisherLevel || 1" show-title />
                   <template v-if="canCompareSeller">
                     <span
@@ -135,6 +139,34 @@
             </p>
           </div>
         </section>
+
+        <section v-if="Number(item.categoryId) === 2" class="lineage-section" aria-labelledby="lineage-title">
+          <div class="lineage-section__head">
+            <span class="lineage-section__icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2Z"/><path d="M9 7h7M9 11h5"/></svg>
+            </span>
+            <div>
+              <small>BOOK LINEAGE</small>
+              <h2 id="lineage-title">教材传承时间轴</h2>
+              <p>一本书在校园里的每次交接，都值得被记住。</p>
+            </div>
+          </div>
+
+          <el-skeleton v-if="lineageLoading" :rows="3" animated />
+          <ol v-else-if="lineage?.chain?.length" class="lineage-timeline">
+            <li v-for="(node, index) in lineage.chain" :key="`${node.userId}-${node.time}-${index}`">
+              <span class="lineage-timeline__dot">{{ index + 1 }}</span>
+              <div class="lineage-timeline__content">
+                <div>
+                  <strong>{{ node.nickname || '校园同学' }}</strong>
+                  <span>{{ node.role === 'PUBLISHER' ? '最初发布' : '完成接力' }}</span>
+                </div>
+                <small>{{ formatDate(node.time) }}<template v-if="node.price != null"> · 成交 ¥{{ Number(node.price).toFixed(2) }}</template></small>
+              </div>
+            </li>
+          </ol>
+          <p v-else class="lineage-section__empty">这本教材刚刚开始它的校园旅程。</p>
+        </section>
       </template>
 
       <div v-else class="empty-panel">
@@ -165,7 +197,7 @@ import LevelBadge from '@/components/common/LevelBadge.vue'
 import PriceTag from '@/components/common/PriceTag.vue'
 import UserAvatar from '@/components/common/UserAvatar.vue'
 import SellerDetailDialog from '@/components/user/SellerDetailDialog.vue'
-import { getItemDetail, toggleFavorite } from '@/api/item'
+import { getItemDetail, getItemLineage, toggleFavorite } from '@/api/item'
 import { getSellerDetail, getUserRelation, getUserReputation } from '@/api/auth'
 import { startItemConversation } from '@/api/chat'
 import { createOrder } from '@/api/order'
@@ -192,6 +224,8 @@ const sellerDetailError = ref(false)
 const sellerDetail = ref(null)
 const sellerReputation = ref(null)
 const sellerRelations = ref([])
+const lineage = ref(null)
+const lineageLoading = ref(false)
 
 const isOwner = computed(() => String(item.value?.publisherId || '') === String(getUserId() || ''))
 const canCompareSeller = computed(() => !!item.value?.publisherId && !isOwner.value && isLoggedIn())
@@ -234,10 +268,25 @@ async function fetchDetail() {
     favorite.value = !!item.value.favoriteByCurrentUser
     favoriteCount.value = Number(item.value.favoriteCount || 0)
     loadSellerRelation(item.value.publisherId)
+    if (Number(item.value.categoryId) === 2) {
+      loadLineage()
+    }
   } catch {
     item.value = null
   } finally {
     loading.value = false
+  }
+}
+
+async function loadLineage() {
+  lineageLoading.value = true
+  try {
+    const res = await getItemLineage(route.params.id)
+    lineage.value = res.data
+  } catch {
+    lineage.value = null
+  } finally {
+    lineageLoading.value = false
   }
 }
 
@@ -362,7 +411,13 @@ function goTag(tag) {
   router.push({ path: '/', query: { keyword: tag } })
 }
 
-onMounted(fetchDetail)
+onMounted(() => {
+  if (!isLoggedIn()) {
+    router.replace({ path: '/login', query: { redirect: route.fullPath } })
+    return
+  }
+  fetchDetail()
+})
 </script>
 
 <style scoped>
@@ -603,6 +658,21 @@ onMounted(fetchDetail)
   line-height: 1.3;
 }
 
+.seller-card__verified {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  border: 1.5px solid var(--ink);
+  border-radius: 6px;
+  background: #D6F2DF;
+  box-shadow: 1px 1px 0 var(--ink);
+  font-size: 11px;
+  font-weight: 900;
+}
+
+.seller-card__verified svg { width: 12px; height: 12px; }
+
 .seller-card__relation-tag:nth-of-type(3n + 2) {
   background: #DCEEFF;
 }
@@ -619,6 +689,86 @@ onMounted(fetchDetail)
   padding: 22px 24px;
   margin-bottom: 24px;
 }
+
+.lineage-section {
+  margin-top: 28px;
+  padding: 22px 24px 26px;
+  border: var(--bw) solid var(--ink);
+  border-radius: var(--r-m);
+  background: var(--white);
+  box-shadow: var(--shadow-m);
+}
+
+.lineage-section__head {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding-bottom: 18px;
+  border-bottom: 1.5px dashed #D8CEBB;
+}
+
+.lineage-section__icon {
+  width: 50px;
+  height: 50px;
+  flex: 0 0 50px;
+  display: grid;
+  place-items: center;
+  border: var(--bw) solid var(--ink);
+  border-radius: var(--r-s);
+  background: var(--yellow);
+  box-shadow: 3px 3px 0 var(--ink);
+  transform: rotate(-4deg);
+}
+
+.lineage-section__icon svg { width: 27px; height: 27px; }
+.lineage-section__head small { color: var(--primary); font-size: 10.5px; font-weight: 900; }
+.lineage-section__head h2 { font-family: var(--font-display); font-size: 24px; }
+.lineage-section__head p { margin-top: 2px; color: var(--ink-soft); font-size: 13px; }
+
+.lineage-timeline {
+  display: flex;
+  margin-top: 22px;
+  padding: 0;
+  list-style: none;
+  overflow-x: auto;
+}
+
+.lineage-timeline li {
+  position: relative;
+  min-width: 190px;
+  flex: 1 0 190px;
+  padding-right: 22px;
+}
+
+.lineage-timeline li:not(:last-child)::after {
+  content: "";
+  position: absolute;
+  top: 17px;
+  left: 34px;
+  right: 0;
+  border-top: 2px dashed var(--ink);
+}
+
+.lineage-timeline__dot {
+  position: relative;
+  z-index: 1;
+  width: 34px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  border: var(--bw) solid var(--ink);
+  border-radius: 50%;
+  background: var(--yellow);
+  box-shadow: 2px 2px 0 var(--ink);
+  font-family: var(--font-display);
+}
+
+.lineage-timeline__content { margin-top: 12px; }
+.lineage-timeline__content > div { display: flex; align-items: center; gap: 7px; flex-wrap: wrap; }
+.lineage-timeline__content strong { font-size: 14px; }
+.lineage-timeline__content span { padding: 2px 6px; border: 1px solid var(--ink); border-radius: 5px; background: var(--paper-deep); font-size: 10px; font-weight: 800; }
+.lineage-timeline__content small { display: block; margin-top: 5px; color: var(--ink-soft); font-size: 11px; }
+.lineage-section__empty { margin: 22px 0 2px; color: var(--ink-soft); font-size: 13px; }
 
 .desc-block h2 {
   font-family: var(--font-display);

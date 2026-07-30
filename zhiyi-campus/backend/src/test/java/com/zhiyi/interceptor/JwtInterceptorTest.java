@@ -25,14 +25,38 @@ class JwtInterceptorTest {
     private final JwtInterceptor interceptor = new JwtInterceptor(null, null);
 
     @Test
-    void exactDynamicGetRoutesArePublic() throws Exception {
-        MockHttpServletResponse itemResponse = new MockHttpServletResponse();
+    void publicUserRoutesRemainPublic() throws Exception {
         MockHttpServletResponse cardResponse = new MockHttpServletResponse();
+        MockHttpServletResponse reputationResponse = new MockHttpServletResponse();
 
         assertTrue(interceptor.preHandle(
-                new MockHttpServletRequest("GET", "/api/item/42"), itemResponse, new Object()));
-        assertTrue(interceptor.preHandle(
                 new MockHttpServletRequest("GET", "/api/user/42/card"), cardResponse, new Object()));
+        assertTrue(interceptor.preHandle(
+                new MockHttpServletRequest("GET", "/api/user/42/reputation"), reputationResponse, new Object()));
+    }
+
+    @Test
+    void itemDetailRequiresAuthentication() throws Exception {
+        MockHttpServletResponse response = new MockHttpServletResponse();
+
+        assertFalse(interceptor.preHandle(
+                new MockHttpServletRequest("GET", "/api/item/42"), response, new Object()));
+        assertEquals(401, response.getStatus());
+    }
+
+    @Test
+    void authenticatedItemDetailReceivesUserId() throws Exception {
+        JwtUtils utils = jwtUtils();
+        JwtInterceptor secured = new JwtInterceptor(
+                utils,
+                new FixedUserStateCache(
+                        new UserAuthState(42L, "USER", "ACTIVE", null, 3)));
+        MockHttpServletRequest request =
+                authenticatedRequest("/api/item/99", utils.generateToken(42L, "USER", 3));
+
+        assertTrue(secured.preHandle(
+                request, new MockHttpServletResponse(), new Object()));
+        assertEquals(42L, request.getAttribute("userId"));
     }
 
     @Test
@@ -115,8 +139,12 @@ class JwtInterceptorTest {
     }
 
     private MockHttpServletRequest authenticatedRequest(String token) {
+        return authenticatedRequest("/api/user/profile", token);
+    }
+
+    private MockHttpServletRequest authenticatedRequest(String path, String token) {
         MockHttpServletRequest request =
-                new MockHttpServletRequest("GET", "/api/user/profile");
+                new MockHttpServletRequest("GET", path);
         request.addHeader("Authorization", "Bearer " + token);
         return request;
     }

@@ -13,7 +13,7 @@
 | 1.5 成长体系 | exp 原子增减且最低为 0、等级只升不降、exp_log 流水、升级事件、进度条数据（VO 内含阈值） | ✅ 自动化测试通过 |
 | 1.6 违规封禁 | 警告/限时/永久三级，violation_log 可追溯，封禁立即踢下线，发布处罚事件，到期自动恢复，提前解封（**仅后端接口；管理端 UI 归 D 的超管控制台**） | ✅ 自动化测试通过 |
 | 扩展：账号安全 | **修改密码**（验证原密码、新旧不得相同、全端强制下线）、**注销账号**（软注销 CANCELLED：密码二次确认、有进行中订单禁止注销、在售商品自动下架、学号保留占用、管理员可恢复） | ✅ 自动化测试通过 |
-| 扩展：学校与校园身份 | 注册必选学校、学校邮箱后缀校验、学院/年级/宿舍资料、同学院/同级/同楼关系标签；商品发布时固化学校，普通商品流量按所属学校隔离 | ✅ 自动化测试通过 |
+| 扩展：学校与校园身份 | 注册必选学校、学校邮箱后缀校验、学院/年级/校区/宿舍资料、同学院/同级/同校区/同楼关系标签；商品发布时固化学校，普通商品流量按所属学校隔离 | ✅ 自动化测试通过 |
 | 扩展：交易评价与信誉 | 完成订单后一单一评；基于交易完成率、响应速度、描述准确度、历史好评、近 30 天活跃度生成五维信誉雷达 | ✅ 自动化测试通过 |
 | 扩展：管理员学校边界 | 管理员由初始化 SQL 默认归属上海大学；访问普通接口时与普通用户一样受学校限制，只有 `/api/admin/**` 保持全平台管理范围 | ✅ 自动化测试通过 |
 | 扩展：跨校安全 | 后端拦截跨校下单、收藏、查看卖家联系方式、联系卖家和普通聊天；管理后台客服使用独立管理员接口跨校处理 | ✅ 自动化测试通过 |
@@ -35,11 +35,11 @@
 | 方法 | 路径 | 说明 |
 |------|------|------|
 | GET | `/api/user/profile` | 当前用户（含 levelTitle / nextLevelExp / currentLevelBaseExp，前端进度条直接用） |
-| PUT | `/api/user/profile` | 更新昵称、手机号、学校、学校邮箱、学院、年级、宿舍 |
+| PUT | `/api/user/profile` | 更新昵称、手机号、学校、学校邮箱、学院、年级、校区、宿舍 |
 | GET | `/api/user/exp-log?page=&size=` | 经验流水（分页） |
 | GET | `/api/user/{id}/card` | 用户公开名片，返回昵称、等级和学校名称 |
 | GET | `/api/user/{id}/seller-detail` | 本校卖家详情与其主动填写的联系方式/校园资料 |
-| GET | `/api/user/{id}/relation` | 当前用户视角的同学院/同级/同楼关系标签 |
+| GET | `/api/user/{id}/relation` | 当前用户视角的同学院/同级/同校区/同楼关系标签 |
 | GET | `/api/user/{id}/reputation` | 用户五维信誉分与评价样本数 |
 | POST | `/api/order/{id}/review` | 买家对已完成订单进行一单一评 |
 | PUT | `/api/user/change-password` | 修改密码 `{oldPassword, newPassword, confirmPassword}`（新旧不得相同） |
@@ -94,7 +94,7 @@ Controller 类或方法上加 `@RoleRequired("ADMIN")` 即可，无需自己判�
 - 等级徽章 / 头像 / 价格公共组件：`components/common/LevelBadge.vue`、`UserAvatar.vue`、`PriceTag.vue`。
 - 学校选择统一使用 `components/common/AppSelect.vue`，不要再新增原生 `<select>`。
 - 信誉展示统一使用 `components/common/ReputationRadar.vue`；订单评价统一使用 `components/trade/OrderReviewDialog.vue`；卖家详情统一使用 `components/user/SellerDetailDialog.vue`。
-- A5 关系标签在商品详情卖家卡片的等级徽章旁直接展示；仅在匹配到同学院、同级或同楼时出现，不占用卖家详情弹窗空间。
+- A5 关系标签在商品详情卖家卡片的等级徽章旁直接展示；仅在匹配到同学院、同级、同校区或同楼时出现，不占用卖家详情弹窗空间。
 - Element Plus 浮层的全局视觉与层级规则集中在 `assets/styles/element-overlays.css`，包括普通对话框、确认框、账户菜单、选择器下拉和顶部消息提示。
 - 顶部操作提示默认 3 秒自动关闭，并统一显示可提前关闭的“×”按钮。
 - 占位页：非 A 页面统一用 `components/common/WipPage.vue` 占位，实现后直接替换。
@@ -134,11 +134,11 @@ node load-test.mjs — GET /api/user/profile（走 JWT 全链路 + DB 查询）
 1. `sys_user` 新增 `token_version INT NOT NULL DEFAULT 0`（Token 版本）。
 2. 新增 `exp_log` 表（经验流水，见 `zhiyi_campus_init.sql` 2.10）。
 3. 新增 `school` 字典表，初始化上海大学（`SHU`）和东华大学（`DHU`）及学校邮箱后缀。
-4. `sys_user` 新增 `school_id`、`school_email`、`college`、`grade`、`dormitory`；`item` 新增并索引 `school_id`。
+4. `sys_user` 新增 `school_id`、`school_email`、`campus`、`college`、`grade`、`dormitory`，并以 `(school_id, student_id)` 联合唯一标识账号；`item` 新增并索引 `school_id`。
 5. 新增 `trade_review` 表；`order_id` 唯一索引保证一单一评，并保存星级、描述准确性和评价文本。
 6. 管理员初始密码占位哈希替换为 BCrypt 哈希，并在初始化 SQL 中直接关联 `code='SHU'` 的上海大学；初始化后请在本地重置管理员密码，不在文档中写明文口令。
 7. `sys_user.status` 新增取值 `CANCELLED`（已注销，软注销；无需改表结构，仅枚举语义扩展）。
-8. 当前开发环境直接以 `zhiyi_campus_init.sql` 重建数据库，不保留旧库迁移脚本或应用启动回填逻辑。
+8. 新环境直接执行 `zhiyi_campus_init.sql`；已有数据库先执行 `module1_school_login_migration.sql`，再执行 `module1_campus_migration.sql`，分别升级学校登录约束和补充可选校区字段。
 
 ## 六、本地启动
 
@@ -171,7 +171,7 @@ cd zhiyi-campus/frontend && npm install && npm run dev   # → :3000（/api 自�
 
 ### 2. 当前工作区补充
 
-- 管理员在 `zhiyi_campus_init.sql` 中直接初始化为上海大学账号，不增加旧库迁移或启动兼容代码。
+- 管理员在 `zhiyi_campus_init.sql` 中直接初始化为上海大学账号；旧库通过 `module1_school_login_migration.sql` 补齐非空学校并更新账号唯一约束。
 - 管理员访问普通商品、订单、钱包、收藏和聊天等功能时，行为与普通用户一致；访问 `/api/admin/**` 时仅校验 `ADMIN` 身份并保持全平台数据范围。
 - 新增 `SchoolScopeGuard`，在后端统一拦截跨校商品查看、收藏、卖家资料、下单、联系卖家及普通聊天。
 - 下单前校验买家学校、商品学校和卖家当前学校三者一致，并确保校验发生在钱包扣款之前。

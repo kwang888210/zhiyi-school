@@ -49,8 +49,9 @@ CREATE TABLE sys_user (
     password        VARCHAR(255)    NOT NULL                 COMMENT 'BCrypt加密密码',
     nickname        VARCHAR(50)     NOT NULL                 COMMENT '昵称',
     phone           VARCHAR(20)     DEFAULT NULL             COMMENT '手机号',
-    school_id       BIGINT          DEFAULT NULL             COMMENT '所属学校ID（普通功能按学校隔离；管理员默认上海大学）',
+    school_id       BIGINT          NOT NULL                 COMMENT '所属学校ID（普通功能按学校隔离；管理员默认上海大学）',
     school_email    VARCHAR(100)    DEFAULT NULL             COMMENT '学校邮箱（可选，后缀须与所属学校匹配）',
+    campus          VARCHAR(50)     DEFAULT NULL             COMMENT '校区（个人中心自愿补全，智能推荐与信任标签使用）',
     college         VARCHAR(50)     DEFAULT NULL             COMMENT '学院（个人中心自愿补全，信任标签用）',
     grade           VARCHAR(10)     DEFAULT NULL             COMMENT '年级（个人中心自愿补全，信任标签用）',
     dormitory       VARCHAR(50)     DEFAULT NULL             COMMENT '宿舍楼（个人中心自愿补全，信任标签用）',
@@ -67,7 +68,7 @@ CREATE TABLE sys_user (
     updated_at      DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
 
     PRIMARY KEY (id),
-    UNIQUE KEY  uk_student_id (student_id),
+    UNIQUE KEY  uk_school_student (school_id, student_id),
     INDEX       idx_status (status),
     INDEX       idx_role (role),
     INDEX       idx_school (school_id),
@@ -327,7 +328,7 @@ VALUES (
     0,
     0.00,
     '系统预设问题',
-    '$2a$10$UpZYvV84lq5Ukv7V4X154eYi795.l8klweRTlunpaf6kptgei.TJC'  -- "admin" 的 BCrypt 哈希
+    '$2a$10$UpZYvV84lq5Ukv7V4X154eYi795.l8klweRTlunpaf6kptgei.TJC'  -- BCrypt 哈希
 );
 
 -- -----------------------------------------------------------

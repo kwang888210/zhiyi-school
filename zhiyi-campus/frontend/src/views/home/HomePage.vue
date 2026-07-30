@@ -47,7 +47,31 @@
         </div>
       </section>
 
-      <div class="cat-row" role="tablist" aria-label="商品大类筛选">
+      <section v-if="!loggedIn" class="login-gate">
+        <span class="login-gate__icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11 12 4l9 7"/><path d="M5 10v10h14V10"/><path d="M9 20v-6h6v6"/></svg>
+        </span>
+        <div>
+          <h2>先登录，再逛本校交易大厅</h2>
+          <p>登录后只会展示你所在学校的商品、榜单和聊天内容。</p>
+        </div>
+        <router-link :to="{ path: '/login', query: { redirect: '/' } }" class="btn btn--primary">登录并进入</router-link>
+      </section>
+
+      <section v-if="loggedIn && activeTopic" class="topic-banner">
+        <span class="topic-banner__stamp">{{ activeTopic.stamp }}</span>
+        <div class="topic-banner__copy">
+          <small>{{ activeTopic.dateLabel }}</small>
+          <h2>{{ activeTopic.title }}</h2>
+          <p>{{ activeTopic.description }}</p>
+        </div>
+        <button class="btn btn--yellow" type="button" @click="applyTopic(activeTopic)">
+          {{ activeTopic.action }}
+          <svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
+        </button>
+      </section>
+
+      <div v-if="loggedIn" class="cat-row" role="tablist" aria-label="商品大类筛选">
           <button
             class="cat-chip"
             :class="{ active: !filters.categoryId }"
@@ -64,7 +88,7 @@
           </button>
       </div>
 
-      <section class="filter-panel">
+      <section v-if="loggedIn" class="filter-panel">
         <div class="filter-panel__bar">
           <button class="filter-panel__title" type="button" :aria-expanded="showTagCloud" @click="toggleTagCloud">
             <span class="filter-panel__stamp"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5h16l-6 7v5l-4 2v-7Z"/></svg></span>
@@ -114,7 +138,7 @@
         </div>
       </section>
 
-      <div class="hall">
+      <div v-if="loggedIn" class="hall">
         <main aria-label="商品列表">
           <div class="sort-row">
             <div class="sort-tabs" role="tablist" aria-label="排序方式">
@@ -143,6 +167,17 @@
               </div>
               <div class="goods-card__body">
                 <h2 class="goods-card__title">{{ item.title }}</h2>
+                <AiTagList :tags="item.aiTags" :limit="3" @select="searchByTag" />
+                <div class="goods-card__relations">
+                  <span v-if="item.dormitoryRelation === 'SAME_BUILDING'" class="neighbor-badge">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 10c0 5-8 11-8 11S4 15 4 10a8 8 0 1 1 16 0Z"/><circle cx="12" cy="10" r="2.5"/></svg>
+                    本楼
+                  </span>
+                  <span v-else-if="item.dormitoryRelation === 'SAME_CAMPUS'" class="neighbor-badge neighbor-badge--campus">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 21V7l8-4 8 4v14"/><path d="M9 21v-5h6v5M8 9h.01M12 9h.01M16 9h.01M8 13h.01M12 13h.01M16 13h.01"/></svg>
+                    本校区
+                  </span>
+                </div>
                 <div class="goods-card__meta">
                   <PriceTag :value="item.price" font-size="22px" />
                   <span class="goods-card__fav">
@@ -161,6 +196,10 @@
                 </div>
                 <div class="goods-card__seller">
                   <span class="seller-name">{{ item.publisherNickname || '同学' }}</span>
+                  <span v-if="item.publisherVerified" class="verified-badge" title="已填写本校邮箱">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 4 4L19 6"/></svg>
+                    已认证
+                  </span>
                   <LevelBadge :level="item.publisherLevel || 1" />
                   <span class="muted">浏览 {{ item.viewCount || 0 }}</span>
                 </div>
@@ -191,36 +230,46 @@
         </main>
 
         <aside>
-          <div class="card rank-card sticker-tilt-r" aria-label="近期爆款榜单">
-            <h3>近期爆款榜</h3>
-            <p class="muted rank-sub">按收藏数实时更新</p>
-          <div v-if="ranking.length" class="ranking-list">
-            <button
-              v-for="(item, index) in ranking"
-              :key="item.id"
-              class="rank-item"
-              @click="goDetail(item.id)"
-            >
-              <span class="rank-item__no">{{ index + 1 }}</span>
-              <span class="rank-item__thumb" :class="phClass(item.id)">
-                <img v-if="item.coverImage" :src="item.coverImage" :alt="item.title" />
-              </span>
-              <span class="rank-item__info">
-                <strong class="rank-item__title">{{ item.title }}</strong>
-                <small class="rank-item__sub">
-                  <span class="p">¥{{ Number(item.price || 0).toFixed(2) }}</span>
-                  <span>收藏 {{ item.favoriteCount || 0 }}</span>
-                </small>
-              </span>
-            </button>
-          </div>
-          <p v-else class="muted ranking-empty">暂无榜单数据</p>
-          </div>
+          <div class="hall-aside__sticky">
+            <div class="card rank-card sticker-tilt-r" aria-label="近期爆款榜单">
+              <div class="rank-card__head">
+                <div>
+                  <h3>近期爆款榜</h3>
+                  <p class="muted rank-sub">按收藏数实时更新</p>
+                </div>
+                <router-link to="/ranking" class="rank-more" title="查看完整榜单">
+                  查看完整榜单
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="m9 18 6-6-6-6"/></svg>
+                </router-link>
+              </div>
+              <div v-if="ranking.length" class="ranking-list">
+                <button
+                  v-for="(item, index) in ranking"
+                  :key="item.id"
+                  class="rank-item"
+                  @click="goDetail(item.id)"
+                >
+                  <span class="rank-item__no">{{ index + 1 }}</span>
+                  <span class="rank-item__thumb" :class="phClass(item.id)">
+                    <img v-if="item.coverImage" :src="item.coverImage" :alt="item.title" />
+                  </span>
+                  <span class="rank-item__info">
+                    <strong class="rank-item__title">{{ item.title }}</strong>
+                    <small class="rank-item__sub">
+                      <span class="p">¥{{ Number(item.price || 0).toFixed(2) }}</span>
+                      <span>收藏 {{ item.favoriteCount || 0 }}</span>
+                    </small>
+                  </span>
+                </button>
+              </div>
+              <p v-else class="muted ranking-empty">暂无榜单数据</p>
+            </div>
 
-          <div class="publish-cta sticker-tilt">
-            <h4>宿舍角落在吃灰？</h4>
-            <p>发布 30 秒搞定，AI 自动打标签</p>
-            <router-link to="/publish" class="btn btn--yellow">去发布闲置</router-link>
+            <div class="publish-cta sticker-tilt">
+              <h4>宿舍角落在吃灰？</h4>
+              <p>发布 30 秒搞定，AI 自动打标签</p>
+              <router-link to="/publish" class="btn btn--yellow">去发布闲置</router-link>
+            </div>
           </div>
         </aside>
       </div>
@@ -229,10 +278,11 @@
 </template>
 
 <script setup>
-import { onMounted, reactive, ref, watch } from 'vue'
+import { nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import AppSelect from '@/components/common/AppSelect.vue'
+import AiTagList from '@/components/common/AiTagList.vue'
 import DefaultLayout from '@/components/layout/DefaultLayout.vue'
 import CategoryIcon from '@/components/common/CategoryIcon.vue'
 import LevelBadge from '@/components/common/LevelBadge.vue'
@@ -256,9 +306,46 @@ const FALLBACK_CATEGORIES = [
   { id: 7, name: '学习用品' },
   { id: 8, name: '其他' },
 ]
+const CAMPUS_TOPICS = [
+  {
+    id: 'new-student',
+    start: 825,
+    end: 915,
+    stamp: 'NEW',
+    dateLabel: '08.25 - 09.15',
+    title: '新生入学季',
+    description: '宿舍生活、学习用品和入门数码，一站配齐新学期。',
+    action: '逛新生必备',
+    categoryName: '生活日用',
+  },
+  {
+    id: 'final-exam',
+    start: 1220,
+    end: 120,
+    stamp: 'EXAM',
+    dateLabel: '12.20 - 01.20',
+    title: '期末备考季',
+    description: '真题、笔记和教材集中上架，复习资料更快找到。',
+    action: '找备考资料',
+    categoryName: '教材书籍',
+    keyword: '真题',
+  },
+  {
+    id: 'graduation',
+    start: 525,
+    end: 630,
+    stamp: 'SALE',
+    dateLabel: '05.25 - 06.30',
+    title: '毕业清仓季',
+    description: '把带不走的好物留在校园，让下一位同学接着使用。',
+    action: '查看毕业好物',
+    keyword: '毕业',
+  },
+]
 
 const router = useRouter()
 const route = useRoute()
+const loggedIn = isLoggedIn()
 const categories = ref(FALLBACK_CATEGORIES)
 const items = ref([])
 const ranking = ref([])
@@ -267,6 +354,9 @@ const pageSize = 12
 const total = ref(0)
 const loading = ref(false)
 const favoriteBusyId = ref(null)
+const activeTopic = CAMPUS_TOPICS.find(isTopicActive) || null
+let priceFilterTimer = null
+let resettingFilters = false
 
 const allTags = ref([])
 const activeTag = ref('')
@@ -290,6 +380,14 @@ function phClass(id) {
   return PH[Number(id) % PH.length]
 }
 
+function isTopicActive(topic) {
+  const now = new Date()
+  const monthDay = (now.getMonth() + 1) * 100 + now.getDate()
+  return topic.start <= topic.end
+    ? monthDay >= topic.start && monthDay <= topic.end
+    : monthDay >= topic.start || monthDay <= topic.end
+}
+
 function buildParams() {
   const params = { page: page.value, size: pageSize, sort: filters.sort }
   if (filters.keyword?.trim()) params.keyword = filters.keyword.trim()
@@ -311,6 +409,7 @@ async function fetchCategories() {
 }
 
 async function fetchAllTags() {
+  if (!loggedIn) return
   try {
     const res = await getAllTags()
     allTags.value = Array.isArray(res.data) ? res.data : []
@@ -336,11 +435,13 @@ function filterByTag(tag, categoryId) {
 }
 
 async function fetchRanking() {
+  if (!loggedIn) return
   const res = await getItemRanking({ limit: 10 })
   ranking.value = res.data || []
 }
 
 async function fetchItems() {
+  if (!loggedIn) return
   loading.value = true
   try {
     const res = await getItemList(buildParams())
@@ -352,11 +453,26 @@ async function fetchItems() {
 }
 
 function applyPriceFilterNow() {
-  page.value = 1
-  fetchItems()
+  if (!priceFilterTimer) return
+  window.clearTimeout(priceFilterTimer)
+  priceFilterTimer = null
+  handleSearch()
+}
+
+function schedulePriceFilter() {
+  if (!loggedIn || resettingFilters) return
+  window.clearTimeout(priceFilterTimer)
+  priceFilterTimer = window.setTimeout(() => {
+    priceFilterTimer = null
+    handleSearch()
+  }, 450)
 }
 
 function handleSearch() {
+  if (!loggedIn) {
+    router.push({ path: '/login', query: { redirect: '/' } })
+    return
+  }
   page.value = 1
   fetchItems()
 }
@@ -371,7 +487,29 @@ function clearKeyword() {
   handleSearch()
 }
 
+function searchByTag(tag) {
+  filters.keyword = tag
+  filters.tag = ''
+  activeTag.value = ''
+  router.replace({ path: '/', query: { keyword: tag } })
+  handleSearch()
+  nextTick(() => document.querySelector('.hall')?.scrollIntoView({ behavior: 'smooth', block: 'start' }))
+}
+
+function applyTopic(topic) {
+  filters.keyword = topic.keyword || ''
+  filters.tag = ''
+  activeTag.value = ''
+  const category = categories.value.find((item) => item.name === topic.categoryName)
+  filters.categoryId = category?.id || ''
+  handleSearch()
+  nextTick(() => document.querySelector('.hall')?.scrollIntoView({ behavior: 'smooth', block: 'start' }))
+}
+
 function resetFilters() {
+  resettingFilters = true
+  window.clearTimeout(priceFilterTimer)
+  priceFilterTimer = null
   filters.keyword = ''
   filters.categoryId = ''
   filters.minPrice = undefined
@@ -382,6 +520,7 @@ function resetFilters() {
   activeTag.value = ''
   page.value = 1
   fetchItems()
+  nextTick(() => { resettingFilters = false })
 }
 
 function selectCategory(id) {
@@ -410,15 +549,26 @@ async function handleFavorite(item) {
   }
 }
 
-watch(() => filters.sort, handleSearch)
-watch(() => filters.type, handleSearch)
+watch(() => filters.sort, () => {
+  if (!resettingFilters) handleSearch()
+})
+watch(() => filters.type, () => {
+  if (!resettingFilters) handleSearch()
+})
+watch(() => [filters.minPrice, filters.maxPrice], schedulePriceFilter)
 
 onMounted(async () => {
   if (route.query.keyword) {
     filters.keyword = String(route.query.keyword)
   }
+  if (!loggedIn) {
+    await fetchCategories()
+    return
+  }
   await Promise.all([fetchCategories(), fetchItems(), fetchRanking(), fetchAllTags()])
 })
+
+onBeforeUnmount(() => window.clearTimeout(priceFilterTimer))
 </script>
 
 <style scoped>
@@ -437,6 +587,65 @@ onMounted(async () => {
   border-bottom: var(--bw) solid var(--ink);
   background: var(--paper-deep);
 }
+
+.login-gate {
+  margin: 30px 0;
+  padding: 26px 28px;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 20px;
+  border: var(--bw) solid var(--ink);
+  border-radius: var(--r-m);
+  background: var(--white);
+  box-shadow: var(--shadow-m);
+}
+
+.login-gate__icon {
+  width: 54px;
+  height: 54px;
+  display: grid;
+  place-items: center;
+  border: var(--bw) solid var(--ink);
+  border-radius: var(--r-s);
+  background: var(--yellow);
+  box-shadow: 3px 3px 0 var(--ink);
+  transform: rotate(-4deg);
+}
+
+.login-gate__icon svg { width: 29px; height: 29px; }
+.login-gate h2 { font-family: var(--font-display); font-size: 24px; }
+.login-gate p { margin-top: 5px; color: var(--ink-soft); font-size: 14px; }
+
+.topic-banner {
+  margin: 24px 0 4px;
+  padding: 18px 22px;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 18px;
+  border: var(--bw) solid var(--ink);
+  border-radius: var(--r-m);
+  background: #DCEEFF;
+  box-shadow: var(--shadow-s);
+}
+
+.topic-banner__stamp {
+  min-width: 62px;
+  padding: 8px 9px;
+  border: var(--bw) solid var(--ink);
+  border-radius: 6px;
+  background: var(--primary);
+  color: var(--white);
+  box-shadow: 3px 3px 0 var(--ink);
+  font-family: var(--font-display);
+  text-align: center;
+  transform: rotate(-4deg);
+}
+
+.topic-banner__copy small { color: var(--primary-deep); font-size: 11px; font-weight: 900; }
+.topic-banner__copy h2 { margin-top: 1px; font-family: var(--font-display); font-size: 24px; }
+.topic-banner__copy p { margin-top: 3px; color: var(--ink-soft); font-size: 13px; }
 
 .hero__inner {
   max-width: 1200px;
@@ -1080,6 +1289,34 @@ onMounted(async () => {
   padding-top: 9px;
 }
 
+.goods-card__relations {
+  min-height: 25px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.neighbor-badge,
+.verified-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 7px;
+  border: 1.5px solid var(--ink);
+  border-radius: 6px;
+  background: var(--yellow);
+  color: var(--ink);
+  font-size: 10.5px;
+  font-weight: 900;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.neighbor-badge svg { width: 12px; height: 12px; }
+.neighbor-badge--campus { background: #DCEEFF; }
+.verified-badge { background: #D6F2DF; }
+.verified-badge svg { width: 12px; height: 12px; }
+
 .seller-name {
   font-weight: 700;
   overflow: hidden;
@@ -1103,11 +1340,40 @@ onMounted(async () => {
   color: var(--red);
 }
 
-.rank-card {
+.hall-aside__sticky {
   position: sticky;
   top: 84px;
-  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
 }
+
+.rank-card {
+  padding: 20px;
+  max-height: calc(100vh - 300px);
+  overflow-y: auto;
+}
+
+.rank-card__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.rank-more {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding-top: 4px;
+  color: var(--primary);
+  font-size: 11.5px;
+  font-weight: 900;
+  white-space: nowrap;
+}
+
+.rank-more:hover { color: var(--primary-deep); }
+.rank-more svg { width: 15px; height: 15px; }
 
 .rank-card h3 {
   font-family: var(--font-display);
@@ -1215,7 +1481,6 @@ onMounted(async () => {
 }
 
 .publish-cta {
-  margin-top: 24px;
   padding: 24px 20px;
   text-align: center;
   background: var(--ink);
@@ -1263,9 +1528,11 @@ onMounted(async () => {
     grid-template-columns: 1fr;
   }
 
-  .rank-card {
+  .hall-aside__sticky {
     position: static;
   }
+
+  .rank-card { max-height: none; overflow: visible; }
 
   .filter-panel__bar {
     gap: 12px;
@@ -1291,6 +1558,13 @@ onMounted(async () => {
 }
 
 @media (max-width: 680px) {
+  .login-gate,
+  .topic-banner {
+    grid-template-columns: auto minmax(0, 1fr);
+    padding: 18px;
+  }
+  .login-gate .btn,
+  .topic-banner .btn { grid-column: 1 / -1; width: 100%; }
   .hero__inner { padding: 38px 16px 42px; }
   .hero h1 { font-size: 34px; }
   .hero p.sub { font-size: 14px; }

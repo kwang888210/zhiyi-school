@@ -62,6 +62,7 @@ class UserServiceTest {
         user.setSchoolId(1L);
         user.setPhone("13800138000");
         user.setSchoolEmail("student@shu.edu.cn");
+        user.setCampus("宝山校区");
         user.setCollege("计算机学院");
         user.setGrade("2024级");
         user.setDormitory("南区3号楼");
@@ -102,6 +103,7 @@ class UserServiceTest {
         assertEquals("上海大学", detail.getSchoolName());
         assertEquals("13800138000", detail.getPhone());
         assertEquals("student@shu.edu.cn", detail.getSchoolEmail());
+        assertEquals("宝山校区", detail.getCampus());
         assertEquals("计算机学院", detail.getCollege());
         assertEquals("2024级", detail.getGrade());
         assertEquals("南区3号楼", detail.getDormitory());
@@ -131,6 +133,7 @@ class UserServiceTest {
         UserService service = new UserService(userMapper, null, schoolServiceReturning(1L, "上海大学"));
 
         UpdateProfileDTO dto = new UpdateProfileDTO();
+        dto.setCampus("  宝山校区 ");
         dto.setCollege("  计算机学院 ");
         dto.setGrade("2024级");
         dto.setDormitory("南区3号楼");
@@ -138,6 +141,7 @@ class UserServiceTest {
 
         ArgumentCaptor<SysUser> patch = ArgumentCaptor.forClass(SysUser.class);
         verify(userMapper).update(patch.capture(), any(Wrapper.class));
+        assertEquals("宝山校区", patch.getValue().getCampus());
         assertEquals("计算机学院", patch.getValue().getCollege());
         assertEquals("2024级", patch.getValue().getGrade());
         assertEquals("南区3号楼", patch.getValue().getDormitory());
@@ -151,6 +155,7 @@ class UserServiceTest {
         UserService service = new UserService(userMapper, null, schoolServiceReturning(1L, "上海大学"));
 
         UpdateProfileDTO dto = new UpdateProfileDTO();
+        dto.setCampus(" ");
         dto.setCollege(" ");
         dto.setGrade("");
         dto.setDormitory("   ");
@@ -160,6 +165,7 @@ class UserServiceTest {
         verify(userMapper).update(any(SysUser.class), wrapper.capture());
         String sqlSet = ((com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper<?>)
                 wrapper.getValue()).getSqlSet();
+        assertTrue(sqlSet.contains("campus="));
         assertTrue(sqlSet.contains("college="));
         assertTrue(sqlSet.contains("grade="));
         assertTrue(sqlSet.contains("dormitory="));
@@ -226,19 +232,21 @@ class UserServiceTest {
         SysUser viewer = new SysUser();
         viewer.setId(1L);
         viewer.setSchoolId(1L);
+        viewer.setCampus("宝山校区");
         viewer.setCollege("计算机学院");
         viewer.setGrade("2024级");
         viewer.setDormitory("南区3号楼");
         SysUser target = new SysUser();
         target.setId(2L);
         target.setSchoolId(1L);
+        target.setCampus("宝山校区");
         target.setCollege("计算机学院"); // 同学院
         target.setGrade("2023级");       // 不同级
         target.setDormitory(null);        // 卖家未填 → 不比对
         when(userMapper.selectById(1L)).thenReturn(viewer);
         when(userMapper.selectById(2L)).thenReturn(target);
 
-        assertEquals(List.of("同学院"), service.getRelationTags(1L, 2L));
+        assertEquals(List.of("同学院", "同校区"), service.getRelationTags(1L, 2L));
     }
 
     @Test

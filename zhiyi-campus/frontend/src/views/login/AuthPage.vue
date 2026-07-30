@@ -57,8 +57,24 @@
         <!-- ===== 登录面板 ===== -->
         <div v-show="tab === 'login'" class="auth-panel">
           <h2>欢迎回来</h2>
-          <p class="sub">用学号登录，继续你的淘货之旅</p>
+          <p class="sub">选择学校并用学号登录，继续你的淘货之旅</p>
           <form @submit.prevent="handleLogin">
+            <div class="field">
+              <label for="l-school">所属学校</label>
+              <AppSelect
+                id="l-school"
+                v-model="loginForm.schoolId"
+                :options="schoolOptions"
+                :placeholder="schoolsLoading ? '学校列表加载中…' : '请选择你就读的学校'"
+                :disabled="schoolsLoading"
+                :loading="schoolsLoading"
+                aria-label="登录学校"
+              />
+              <div v-if="schoolsError" class="school-load-error" role="alert">
+                <span>学校列表加载失败</span>
+                <button class="school-retry" type="button" :disabled="schoolsLoading" @click="fetchSchools">重新加载</button>
+              </div>
+            </div>
             <div class="field">
               <label for="l-sid">学号</label>
               <input id="l-sid" v-model.trim="loginForm.studentId" class="input" type="text" placeholder="例如：20240101234" autocomplete="username" />
@@ -71,7 +87,7 @@
               <span class="muted">Token 有效期 24 小时</span>
               <a href="#" @click.prevent="switchTab('forgot')">忘记密码？</a>
             </div>
-            <button class="btn btn--primary btn--lg btn--block" type="submit" :disabled="loading">
+            <button class="btn btn--primary btn--lg btn--block" type="submit" :disabled="loading || schoolsLoading">
               {{ loading ? '登录中…' : '登录' }}
             </button>
           </form>
@@ -181,20 +197,36 @@
           <p class="sub">回答密保问题，重置你的密码</p>
 
           <div class="steps" aria-label="找回密码步骤">
-            <span class="step" :class="stepClass(1)"><span class="step__no">{{ forgotStep > 1 ? '✓' : '1' }}</span>输学号</span>
+            <span class="step" :class="stepClass(1)"><span class="step__no">{{ forgotStep > 1 ? '✓' : '1' }}</span>确认账号</span>
             <span class="step-line"></span>
             <span class="step" :class="stepClass(2)"><span class="step__no">{{ forgotStep > 2 ? '✓' : '2' }}</span>答密保</span>
             <span class="step-line"></span>
             <span class="step" :class="stepClass(3)"><span class="step__no">3</span>设新密码</span>
           </div>
 
-          <!-- 步骤1：输学号 -->
+          <!-- 步骤1：选择学校并输入学号 -->
           <form v-if="forgotStep === 1" @submit.prevent="handleFetchQuestion">
+            <div class="field">
+              <label for="f-school">所属学校</label>
+              <AppSelect
+                id="f-school"
+                v-model="forgotForm.schoolId"
+                :options="schoolOptions"
+                :placeholder="schoolsLoading ? '学校列表加载中…' : '请选择注册时的学校'"
+                :disabled="schoolsLoading"
+                :loading="schoolsLoading"
+                aria-label="找回密码学校"
+              />
+              <div v-if="schoolsError" class="school-load-error" role="alert">
+                <span>学校列表加载失败</span>
+                <button class="school-retry" type="button" :disabled="schoolsLoading" @click="fetchSchools">重新加载</button>
+              </div>
+            </div>
             <div class="field">
               <label for="f-sid">学号</label>
               <input id="f-sid" v-model.trim="forgotForm.studentId" class="input" type="text" placeholder="请输入注册时的学号" />
             </div>
-            <button class="btn btn--green btn--lg btn--block" type="submit" :disabled="loading">下一步</button>
+            <button class="btn btn--green btn--lg btn--block" type="submit" :disabled="loading || schoolsLoading">下一步</button>
           </form>
 
           <!-- 步骤2：答密保 -->
@@ -263,11 +295,25 @@ const userStore = useUserStore()
 const tab = ref(props.initialTab)
 const loading = ref(false)
 const banMessage = ref('')
+const LAST_SCHOOL_KEY = 'zhiyi:last-school-id'
+
+function savedSchoolId() {
+  const value = Number(localStorage.getItem(LAST_SCHOOL_KEY))
+  return Number.isSafeInteger(value) && value > 0 ? value : null
+}
+
+function rememberSchool(schoolId) {
+  if (schoolId) localStorage.setItem(LAST_SCHOOL_KEY, String(schoolId))
+}
 
 // —— 登录 ——
-const loginForm = reactive({ studentId: '', password: '' })
+const loginForm = reactive({ schoolId: savedSchoolId(), studentId: '', password: '' })
 
 async function handleLogin() {
+  if (!loginForm.schoolId) {
+    ElMessage.warning('请选择所属学校')
+    return
+  }
   if (!loginForm.studentId || !loginForm.password) {
     ElMessage.warning('请输入学号和密码')
     return
@@ -275,6 +321,7 @@ async function handleLogin() {
   loading.value = true
   try {
     const res = await login({ ...loginForm })
+    rememberSchool(loginForm.schoolId)
     userStore.setLogin(res.data)
     ElMessage.success('登录成功')
     router.push(route.query.redirect || '/')
@@ -292,7 +339,7 @@ const questions = ref([])
 const regStep = ref(1)
 const regForm = reactive({
   studentId: '', password: '', confirmPassword: '', nickname: '',
-  schoolId: null, schoolEmail: '',
+  schoolId: savedSchoolId(), schoolEmail: '',
   securityQuestion: '', securityAnswer: '', phone: '',
 })
 
@@ -327,12 +374,19 @@ async function fetchSchools() {
   try {
     const res = await getSchools()
     schools.value = res.data || []
-    if (!schools.value.some((school) => school.id === regForm.schoolId)) {
-      regForm.schoolId = null
+    const rememberedSchoolId = savedSchoolId()
+    for (const form of [loginForm, regForm, forgotForm]) {
+      if (!schools.value.some((school) => school.id === form.schoolId)) {
+        form.schoolId = schools.value.some((school) => school.id === rememberedSchoolId)
+          ? rememberedSchoolId
+          : null
+      }
     }
   } catch {
     schools.value = []
+    loginForm.schoolId = null
     regForm.schoolId = null
+    forgotForm.schoolId = null
     schoolsError.value = true
   } finally {
     schoolsLoading.value = false
@@ -434,6 +488,7 @@ async function handleRegister() {
       securityAnswer: regForm.securityAnswer,
       phone: regForm.phone,
     })
+    rememberSchool(regForm.schoolId)
     userStore.setLogin(res.data)
     ElMessage.success('注册成功，欢迎加入智易校园！')
     router.push('/')
@@ -450,20 +505,30 @@ async function handleRegister() {
 // —— 找回密码（三步）——
 const forgotStep = ref(1)
 const securityQuestion = ref('')
-const forgotForm = reactive({ studentId: '', securityAnswer: '', newPassword: '', confirmPassword: '' })
+const forgotForm = reactive({
+  schoolId: savedSchoolId(),
+  studentId: '',
+  securityAnswer: '',
+  newPassword: '',
+  confirmPassword: '',
+})
 
 function stepClass(n) {
   return { done: forgotStep.value > n, current: forgotStep.value === n }
 }
 
 async function handleFetchQuestion() {
+  if (!forgotForm.schoolId) {
+    ElMessage.warning('请选择注册时的学校')
+    return
+  }
   if (!forgotForm.studentId) {
     ElMessage.warning('请输入学号')
     return
   }
   loading.value = true
   try {
-    const res = await getSecurityQuestion(forgotForm.studentId)
+    const res = await getSecurityQuestion(forgotForm.schoolId, forgotForm.studentId)
     securityQuestion.value = res.data.question
     forgotStep.value = 2
   } catch (e) {
@@ -485,9 +550,23 @@ async function handleReset() {
   loading.value = true
   try {
     await resetPassword({ ...forgotForm })
+    const recoveredSchoolId = forgotForm.schoolId
+    const recoveredStudentId = forgotForm.studentId
+    rememberSchool(recoveredSchoolId)
     ElMessage.success('密码重置成功，请用新密码登录')
     forgotStep.value = 1
-    Object.assign(forgotForm, { studentId: '', securityAnswer: '', newPassword: '', confirmPassword: '' })
+    Object.assign(forgotForm, {
+      schoolId: recoveredSchoolId,
+      studentId: '',
+      securityAnswer: '',
+      newPassword: '',
+      confirmPassword: '',
+    })
+    Object.assign(loginForm, {
+      schoolId: recoveredSchoolId,
+      studentId: recoveredStudentId,
+      password: '',
+    })
     switchTab('login')
   } catch (e) {
     // 答案错误时退回步骤2重新作答
@@ -503,6 +582,9 @@ async function handleReset() {
 function switchTab(name) {
   tab.value = name
   banMessage.value = ''
+  if (name === 'forgot' && !forgotForm.schoolId) {
+    forgotForm.schoolId = loginForm.schoolId || savedSchoolId()
+  }
 }
 
 onMounted(async () => {

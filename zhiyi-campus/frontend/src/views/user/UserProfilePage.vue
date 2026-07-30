@@ -122,9 +122,15 @@
                   <input id="p-grade" v-model.trim="editForm.grade" class="input" type="text" maxlength="10" placeholder="如：2024级" />
                 </div>
               </div>
-              <div class="field">
-                <label for="p-dorm">宿舍楼</label>
-                <input id="p-dorm" v-model.trim="editForm.dormitory" class="input" type="text" maxlength="50" placeholder="如：紫荆公寓3号楼" />
+              <div class="field-row">
+                <div class="field">
+                  <label for="p-campus">校区</label>
+                  <input id="p-campus" v-model.trim="editForm.campus" class="input" type="text" maxlength="50" placeholder="如：宝山校区" />
+                </div>
+                <div class="field">
+                  <label for="p-dorm">宿舍楼</label>
+                  <input id="p-dorm" v-model.trim="editForm.dormitory" class="input" type="text" maxlength="50" placeholder="如：南区3号楼" />
+                </div>
               </div>
               <button class="btn btn--primary" type="submit" :disabled="saving">
                 {{ saving ? '保存中…' : '保存修改' }}
@@ -240,7 +246,7 @@ const user = computed(() => userStore.user)
 const saving = ref(false)
 const editForm = reactive({
   nickname: '', phone: '', schoolId: null, schoolEmail: '',
-  college: '', grade: '', dormitory: '',
+  campus: '', college: '', grade: '', dormitory: '',
 })
 const schools = ref([])
 const schoolOptions = computed(() =>
@@ -390,6 +396,7 @@ function fillEditForm(profile) {
     editForm.phone = profile.phone || ''
     editForm.schoolId = profile.schoolId ?? null
     editForm.schoolEmail = profile.schoolEmail || ''
+    editForm.campus = profile.campus || ''
     editForm.college = profile.college || ''
     editForm.grade = profile.grade || ''
     editForm.dormitory = profile.dormitory || ''
