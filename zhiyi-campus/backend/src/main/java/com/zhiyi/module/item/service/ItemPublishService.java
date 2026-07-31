@@ -166,11 +166,14 @@ public class ItemPublishService {
         item.setTitle(dto.getTitle().trim());
         item.setDescription(dto.getDescription().trim());
         item.setCategoryId(dto.getCategoryId());
-        item.setPrice(dto.getPrice().setScale(2));
+        item.setPrice(normalizePrice(dto));
         item.setImages(toJson(dto.getImages()));
         item.setAiTags(toJson(review.tags()));
         item.setAiReviewed(!review.reviewError());
         item.setTradeLocation(dto.getTradeLocation().trim());
+        item.setPickupLocation(trimToNull(dto.getPickupLocation()));
+        item.setDeliveryLocation(trimToNull(dto.getDeliveryLocation()));
+        item.setDeadlineTime(dto.getDeadlineTime());
         itemMapper.updateById(item);
         if (!review.reviewError()) {
             dismissPendingViolationsAfterCorrection(itemId);
@@ -237,10 +240,13 @@ public class ItemPublishService {
         item.setTitle(dto.getTitle().trim());
         item.setDescription(dto.getDescription().trim());
         item.setCategoryId(dto.getCategoryId());
-        item.setPrice(dto.getPrice().setScale(2));
+        item.setPrice(normalizePrice(dto));
         item.setImages(toJson(dto.getImages()));
         item.setAiTags(toJson(review.tags()));
         item.setTradeLocation(dto.getTradeLocation().trim());
+        item.setPickupLocation(trimToNull(dto.getPickupLocation()));
+        item.setDeliveryLocation(trimToNull(dto.getDeliveryLocation()));
+        item.setDeadlineTime(dto.getDeadlineTime());
         item.setViewCount(0);
         item.setIsDeleted(false);
         return item;
@@ -271,7 +277,13 @@ public class ItemPublishService {
                 tags.add(value);
             }
         }
-        tags.add(dto.getType().equals("SELL") ? "出售" : "求购");
+        tags.add(switch (dto.getType()) {
+            case "SELL" -> "出售";
+            case "BUY" -> "求购";
+            case "SWAP" -> "以物换物";
+            case "ERRAND" -> "校园跑腿";
+            default -> dto.getType();
+        });
         return new ArrayList<>(tags).stream().limit(6).toList();
     }
 
@@ -335,7 +347,18 @@ public class ItemPublishService {
         dto.setCategoryId(item.getCategoryId());
         dto.setPrice(item.getPrice());
         dto.setTradeLocation(item.getTradeLocation());
+        dto.setPickupLocation(item.getPickupLocation());
+        dto.setDeliveryLocation(item.getDeliveryLocation());
+        dto.setDeadlineTime(item.getDeadlineTime());
         return dto;
+    }
+
+    private BigDecimal normalizePrice(PublishItemDTO dto) {
+        return "SWAP".equals(dto.getType()) ? null : dto.getPrice().setScale(2);
+    }
+
+    private String trimToNull(String value) {
+        return StringUtils.hasText(value) ? value.trim() : null;
     }
 
     private String toJson(Object value) {

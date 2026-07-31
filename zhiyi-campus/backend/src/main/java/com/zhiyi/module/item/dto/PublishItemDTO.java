@@ -2,6 +2,7 @@ package com.zhiyi.module.item.dto;
 
 import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.Digits;
+import jakarta.validation.constraints.AssertTrue;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
@@ -10,12 +11,13 @@ import jakarta.validation.constraints.Size;
 import lombok.Data;
 
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
 import java.util.List;
 
 @Data
 public class PublishItemDTO {
     @NotBlank(message = "发布类型不能为空")
-    @Pattern(regexp = "SELL|BUY", message = "发布类型只能是 SELL 或 BUY")
+    @Pattern(regexp = "SELL|BUY|SWAP|ERRAND", message = "发布类型只能是 SELL、BUY、SWAP 或 ERRAND")
     private String type;
 
     @NotBlank(message = "标题不能为空")
@@ -29,7 +31,6 @@ public class PublishItemDTO {
     @NotNull(message = "所属大类不能为空")
     private Long categoryId;
 
-    @NotNull(message = "价格不能为空")
     @DecimalMin(value = "0.01", message = "价格不能低于0.01")
     @Digits(integer = 8, fraction = 2, message = "价格最多8位整数和2位小数")
     private BigDecimal price;
@@ -41,4 +42,28 @@ public class PublishItemDTO {
     @NotBlank(message = "交易地点不能为空")
     @Size(max = 255, message = "交易地点不能超过255字")
     private String tradeLocation;
+
+    @Size(max = 255, message = "取件地点不能超过255字")
+    private String pickupLocation;
+
+    @Size(max = 255, message = "送达地点不能超过255字")
+    private String deliveryLocation;
+
+    private LocalDateTime deadlineTime;
+
+    @AssertTrue(message = "发布类型对应的价格、取送地点或截止时间不符合要求")
+    public boolean isTypeDetailsValid() {
+        if ("SWAP".equals(type)) {
+            return price == null;
+        }
+        if ("ERRAND".equals(type)) {
+            return price != null
+                    && price.compareTo(BigDecimal.ONE) >= 0
+                    && price.compareTo(new BigDecimal("20")) <= 0
+                    && pickupLocation != null && !pickupLocation.isBlank()
+                    && deliveryLocation != null && !deliveryLocation.isBlank()
+                    && deadlineTime != null && deadlineTime.isAfter(LocalDateTime.now());
+        }
+        return price != null && (deadlineTime == null || deadlineTime.isAfter(LocalDateTime.now()));
+    }
 }

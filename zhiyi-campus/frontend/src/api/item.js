@@ -30,6 +30,18 @@ export function getTrendingAiTags(params) {
   return request.get('/item/ranking/tags', { params })
 }
 
+export function getSwapMatches() {
+  return request.get('/item/swap-matches')
+}
+
+export function getErrands() {
+  return request.get('/item/errands')
+}
+
+export function getActiveTopic() {
+  return request.get('/item/active-topic')
+}
+
 /** 获取全部 AI 标签及出现次数（精细筛选标签云） */
 export function getAllTags() {
   return request.get('/item/tags')

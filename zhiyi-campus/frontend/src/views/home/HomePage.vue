@@ -162,7 +162,7 @@
               <div class="goods-card__img" :class="phClass(item.id)">
                 <img v-if="item.coverImage" :src="item.coverImage" :alt="item.title" />
                 <span class="badge goods-card__type" :class="item.type === 'BUY' ? 'badge--buy' : 'badge--sell'">
-                  {{ item.type === 'BUY' ? '求购' : '出售' }}
+                  {{ itemTypeLabel(item.type) }} <span v-if="item.deadlineLabel">{{ item.deadlineLabel }}</span>
                 </span>
               </div>
               <div class="goods-card__body">
@@ -179,7 +179,8 @@
                   </span>
                 </div>
                 <div class="goods-card__meta">
-                  <PriceTag :value="item.price" font-size="22px" />
+                  <strong v-if="item.type === 'SWAP'" class="price">换物</strong>
+                  <PriceTag v-else :value="item.price" font-size="22px" />
                   <span class="goods-card__fav">
                     <svg class="heart-icon" viewBox="0 0 24 24" :fill="item.favoriteByCurrentUser ? 'currentColor' : 'none'" stroke="currentColor" stroke-width="2"><path d="M19 14c1.5-1.5 3-3.2 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.8 0-3 .5-4.5 2C10.5 3.5 9.3 3 7.5 3A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4 3 5.5l7 7Z"/></svg>
                     {{ item.favoriteCount || 0 }}
@@ -287,7 +288,7 @@ import DefaultLayout from '@/components/layout/DefaultLayout.vue'
 import CategoryIcon from '@/components/common/CategoryIcon.vue'
 import LevelBadge from '@/components/common/LevelBadge.vue'
 import PriceTag from '@/components/common/PriceTag.vue'
-import { getCategories, getAllTags, getItemList, getItemRanking, toggleFavorite } from '@/api/item'
+import { getActiveTopic, getCategories, getAllTags, getItemList, getItemRanking, toggleFavorite } from '@/api/item'
 import { isLoggedIn } from '@/utils/auth'
 
 const PH = ['ph-a', 'ph-b', 'ph-c', 'ph-d', 'ph-e', 'ph-f']
@@ -295,6 +296,8 @@ const TYPE_OPTIONS = [
   { label: '全部类型', value: '' },
   { label: '出售', value: 'SELL' },
   { label: '求购', value: 'BUY' },
+  { label: '以物换物', value: 'SWAP' },
+  { label: '帮带跑腿', value: 'ERRAND' },
 ]
 const FALLBACK_CATEGORIES = [
   { id: 1, name: '数码电子' },
@@ -354,7 +357,7 @@ const pageSize = 12
 const total = ref(0)
 const loading = ref(false)
 const favoriteBusyId = ref(null)
-const activeTopic = CAMPUS_TOPICS.find(isTopicActive) || null
+const activeTopic = ref(CAMPUS_TOPICS.find(isTopicActive) || null)
 let priceFilterTimer = null
 let resettingFilters = false
 
@@ -378,6 +381,10 @@ const filters = reactive({
 
 function phClass(id) {
   return PH[Number(id) % PH.length]
+}
+
+function itemTypeLabel(type) {
+  return { SELL: '出售', BUY: '求购', SWAP: '换物', ERRAND: '跑腿' }[type] || type
 }
 
 function isTopicActive(topic) {
@@ -440,6 +447,29 @@ async function fetchRanking() {
   ranking.value = res.data || []
 }
 
+async function fetchActiveTopic() {
+  if (!loggedIn) return
+  try {
+    const res = await getActiveTopic()
+    if (res.data) {
+      const topic = res.data
+      activeTopic.value = {
+        ...topic,
+        stamp: 'TOPIC',
+        dateLabel: `${formatTopicDate(topic.startTime)} - ${formatTopicDate(topic.endTime)}`,
+        description: topic.bannerText,
+        action: '进入专题',
+      }
+    }
+  } catch { /* 保留内置季节专题作为降级展示 */ }
+}
+
+function formatTopicDate(value) {
+  if (!value) return ''
+  const d = new Date(value)
+  return `${String(d.getMonth() + 1).padStart(2, '0')}.${String(d.getDate()).padStart(2, '0')}`
+}
+
 async function fetchItems() {
   if (!loggedIn) return
   loading.value = true
@@ -498,10 +528,11 @@ function searchByTag(tag) {
 
 function applyTopic(topic) {
   filters.keyword = topic.keyword || ''
-  filters.tag = ''
-  activeTag.value = ''
+  filters.tag = topic.filterTag || ''
+  activeTag.value = topic.filterTag || ''
+  filters.type = topic.filterType || ''
   const category = categories.value.find((item) => item.name === topic.categoryName)
-  filters.categoryId = category?.id || ''
+  filters.categoryId = topic.filterCategoryId || category?.id || ''
   handleSearch()
   nextTick(() => document.querySelector('.hall')?.scrollIntoView({ behavior: 'smooth', block: 'start' }))
 }
@@ -565,7 +596,7 @@ onMounted(async () => {
     await fetchCategories()
     return
   }
-  await Promise.all([fetchCategories(), fetchItems(), fetchRanking(), fetchAllTags()])
+  await Promise.all([fetchCategories(), fetchItems(), fetchRanking(), fetchAllTags(), fetchActiveTopic()])
 })
 
 onBeforeUnmount(() => window.clearTimeout(priceFilterTimer))
