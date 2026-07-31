@@ -14,6 +14,10 @@ import com.zhiyi.module.admin.vo.PenaltyStatsVO;
 import com.zhiyi.module.admin.vo.ViolationVO;
 import com.zhiyi.module.item.entity.Item;
 import com.zhiyi.module.item.mapper.ItemMapper;
+import com.zhiyi.module.trade.entity.TradeOrder;
+import com.zhiyi.module.trade.entity.TradeReview;
+import com.zhiyi.module.trade.mapper.TradeOrderMapper;
+import com.zhiyi.module.trade.mapper.TradeReviewMapper;
 import com.zhiyi.module.user.dto.BanUserDTO;
 import com.zhiyi.module.user.entity.SysUser;
 import com.zhiyi.module.user.mapper.SysUserMapper;
@@ -44,6 +48,8 @@ public class AdminViolationService {
     private final ItemMapper itemMapper;
     private final BanService banService;
     private final ViolationLogMapper violationLogMapper;
+    private final TradeOrderMapper tradeOrderMapper;
+    private final TradeReviewMapper tradeReviewMapper;
 
     /**
      * 分页查询违规记录列表
@@ -115,6 +121,9 @@ public class AdminViolationService {
         banDTO.setBanDays(dto.getBanDays());
         banService.punish(banDTO, adminId);
 
+        // 3. 评价联动：降低卖家信誉评分
+        applyReputationPenalty(report);
+
         log.info("管理员 {} 确认违规 reportId={}, 处罚用户 {} type={}", adminId, reportId, report.getUserId(), dto.getType());
     }
 
@@ -138,7 +147,10 @@ public class AdminViolationService {
         report.setHandledAt(LocalDateTime.now());
         violationReportMapper.updateById(report);
 
-        // 2. 商品重新上架
+        // 2. 评价联动：恢复卖家信誉评分
+        removeReputationPenalty(report.getUserId());
+
+        // 3. 商品重新上架
         if (report.getItemId() != null) {
             Item item = itemMapper.selectById(report.getItemId());
             if (item != null && "OFF_SHELF".equals(item.getStatus())) {
@@ -230,5 +242,126 @@ public class AdminViolationService {
         vo.setPenaltyScore(Math.max(0, 100 - penalty));
 
         return vo;
+    }
+
+    // ========================================
+    // D4 评价联动：违规处罚 → 信誉降级 / 恢复
+    // ========================================
+
+    private static final String SYSTEM_PENALTY_COMMENT = "系统处罚：卖家违规行为";
+    private static final String SYSTEM_DOWNGRADE_MARKER = "[系统：卖家因违规行为信誉降级]";
+
+    /**
+     * 确认违规后降低卖家信誉评分（D4 评价联动）
+     *
+     * 1. 优先匹配违规关联商品的 COMPLETED 订单，否则取卖家最近一笔 COMPLETED 订单
+     * 2. 无订单 → 静默返回（被举报用户从未卖出过商品）
+     * 3. 无评价 → 插入系统差评（rating=1, accurate=false）
+     * 4. 有评价且 rating > 1 → 降 2 分（最低 1 分），追加降级标记
+     */
+    private void applyReputationPenalty(ViolationReport report) {
+        Long sellerId = report.getUserId();
+
+        // 1. 查找卖家的 COMPLETED 订单：优先违规关联商品
+        TradeOrder order = null;
+        if (report.getItemId() != null) {
+            order = tradeOrderMapper.selectOne(new LambdaQueryWrapper<TradeOrder>()
+                    .eq(TradeOrder::getItemId, report.getItemId())
+                    .eq(TradeOrder::getSellerId, sellerId)
+                    .eq(TradeOrder::getStatus, "COMPLETED")
+                    .orderByDesc(TradeOrder::getCompletedAt)
+                    .last("LIMIT 1"));
+        }
+        if (order == null) {
+            order = tradeOrderMapper.selectOne(new LambdaQueryWrapper<TradeOrder>()
+                    .eq(TradeOrder::getSellerId, sellerId)
+                    .eq(TradeOrder::getStatus, "COMPLETED")
+                    .orderByDesc(TradeOrder::getCompletedAt)
+                    .last("LIMIT 1"));
+        }
+        // 4.1：卖家无已完成订单 → 静默返回
+        if (order == null) {
+            log.info("卖家 {} 无已完成订单，跳过评价降级", sellerId);
+            return;
+        }
+
+        // 2. 查该订单是否已有评价
+        TradeReview existing = tradeReviewMapper.selectOne(new LambdaQueryWrapper<TradeReview>()
+                .eq(TradeReview::getOrderId, order.getId()));
+
+        if (existing == null) {
+            // 4.2：无评价 → 插入系统差评
+            TradeReview sys = new TradeReview();
+            sys.setOrderId(order.getId());
+            sys.setReviewerId(order.getBuyerId()); // 评价者填买家 ID（系统代发）
+            sys.setTargetId(sellerId);
+            sys.setRating(1);
+            sys.setAccurate(false);
+            sys.setComment(SYSTEM_PENALTY_COMMENT);
+            tradeReviewMapper.insert(sys);
+            log.info("卖家 {} 无评价，插入系统处罚评价 orderId={}", sellerId, order.getId());
+        } else if (existing.getRating() != null && existing.getRating() > 1) {
+            // 4.3-4.5：有评价且大于 1 分 → 降 2 分
+            TradeReview patch = new TradeReview();
+            patch.setId(existing.getId());
+            patch.setRating(Math.max(1, existing.getRating() - 2));
+            patch.setAccurate(false);
+            String newComment = (existing.getComment() == null ? "" : existing.getComment() + " ")
+                    + SYSTEM_DOWNGRADE_MARKER;
+            patch.setComment(newComment.trim());
+            tradeReviewMapper.updateById(patch);
+            log.info("卖家 {} 评价降级：rating {}→{} orderId={}", sellerId,
+                    existing.getRating(), patch.getRating(), order.getId());
+        } else {
+            // 4.5：已有评价且 rating <= 1 → 仅标记 accurate=false
+            TradeReview patch = new TradeReview();
+            patch.setId(existing.getId());
+            patch.setAccurate(false);
+            tradeReviewMapper.updateById(patch);
+            log.info("卖家 {} 评价评分已为 {}，仅标记 accurate=false orderId={}", sellerId, existing.getRating(), order.getId());
+        }
+    }
+
+    /**
+     * 驳回违规后恢复卖家信誉评分（D4 评价联动）
+     *
+     * 1. 删除所有系统处罚产生的评价（comment = "系统处罚：卖家违规行为"）
+     * 2. 恢复被降级的真实评价：rating + 2（不超过 5），accurate 恢复为 true，移除降级标记
+     */
+    private void removeReputationPenalty(Long sellerId) {
+        // 1. 删除系统处罚评价
+        List<TradeReview> systemReviews = tradeReviewMapper.selectList(
+                new LambdaQueryWrapper<TradeReview>()
+                        .eq(TradeReview::getTargetId, sellerId)
+                        .eq(TradeReview::getComment, SYSTEM_PENALTY_COMMENT));
+        if (!systemReviews.isEmpty()) {
+            for (TradeReview r : systemReviews) {
+                tradeReviewMapper.deleteById(r.getId());
+            }
+            log.info("删除了卖家 {} 的 {} 条系统处罚评价", sellerId, systemReviews.size());
+        }
+
+        // 2. 恢复被降级的真实评价（comment 包含降级标记）
+        List<TradeReview> downgraded = tradeReviewMapper.selectList(
+                new LambdaQueryWrapper<TradeReview>()
+                        .eq(TradeReview::getTargetId, sellerId)
+                        .like(TradeReview::getComment, SYSTEM_DOWNGRADE_MARKER));
+        for (TradeReview r : downgraded) {
+            TradeReview patch = new TradeReview();
+            patch.setId(r.getId());
+            // 恢复评分：+2，不超过 5
+            patch.setRating(Math.min(5, (r.getRating() == null ? 3 : r.getRating()) + 2));
+            patch.setAccurate(true);
+            // 移除降级标记
+            String cleaned = r.getComment() == null ? ""
+                    : r.getComment().replace(SYSTEM_DOWNGRADE_MARKER, "").trim();
+            patch.setComment(cleaned.isEmpty() ? null : cleaned);
+            tradeReviewMapper.updateById(patch);
+            log.info("卖家 {} 评价恢复：rating {}→{} orderId={}", sellerId, r.getRating(), patch.getRating(), r.getOrderId());
+        }
+
+        if (systemReviews.isEmpty() && downgraded.isEmpty()) {
+            log.info("卖家 {} 无系统处罚评价可恢复", sellerId);
+        }
     }
 }

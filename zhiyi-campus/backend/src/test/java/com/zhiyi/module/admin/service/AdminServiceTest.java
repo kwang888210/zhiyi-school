@@ -11,6 +11,8 @@ import com.zhiyi.module.admin.mapper.ViolationReportMapper;
 import com.zhiyi.module.admin.vo.ViolationVO;
 import com.zhiyi.module.item.entity.Item;
 import com.zhiyi.module.item.mapper.ItemMapper;
+import com.zhiyi.module.trade.mapper.TradeOrderMapper;
+import com.zhiyi.module.trade.mapper.TradeReviewMapper;
 import com.zhiyi.module.user.entity.SysUser;
 import com.zhiyi.module.user.mapper.SysUserMapper;
 import com.zhiyi.module.user.service.BanService;
@@ -171,13 +173,16 @@ class AdminServiceTest {
         @Mock private ItemMapper itemMapper;
         @Mock private BanService banService;
         @Mock private ViolationLogMapper violationLogMapper;
+        @Mock private TradeOrderMapper tradeOrderMapper;
+        @Mock private TradeReviewMapper tradeReviewMapper;
 
         private AdminViolationService service;
 
         @BeforeEach
         void setUp() {
             service = new AdminViolationService(
-                    violationReportMapper, sysUserMapper, itemMapper, banService, violationLogMapper);
+                    violationReportMapper, sysUserMapper, itemMapper, banService, violationLogMapper,
+                    tradeOrderMapper, tradeReviewMapper);
         }
 
         @Test

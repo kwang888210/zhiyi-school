@@ -97,6 +97,10 @@ export function updateSchool(id, data) {
   return request.put(`/admin/schools/${id}`, data)
 }
 
+export function deleteSchool(id) {
+  return request.delete(`/admin/schools/${id}`)
+}
+
 /** 分类管理 */
 export function getAdminCategories() {
   return request.get('/admin/categories')

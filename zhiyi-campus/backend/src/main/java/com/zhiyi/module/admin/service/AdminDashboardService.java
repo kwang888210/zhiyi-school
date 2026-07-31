@@ -164,33 +164,46 @@ public class AdminDashboardService {
     }
 
     /**
-     * 交易热力图（D5）：统计各 trade_location 的交易频次
+     * 交易热力图（D5）：统计各 trade_location 的 COMPLETED 订单频次
+     *
+     * 联表统计：trade_order（COMPLETED）JOIN item → 按 item.trade_location 分组计数
      *
      * @param schoolId 可选，null = 全局
      */
     public List<TradeHeatmapVO> getTradeHeatmap(Long schoolId) {
-        // 查询所有有交易地点的商品，联表统计订单数
+        // 1. 查询所有 COMPLETED 订单
+        List<TradeOrder> completedOrders = orderMapper.selectList(
+                new LambdaQueryWrapper<TradeOrder>()
+                        .eq(TradeOrder::getStatus, "COMPLETED"));
+        if (completedOrders.isEmpty()) {
+            return java.util.List.of();
+        }
+
+        // 2. 提取 itemId 并批量查商品
+        List<Long> itemIds = completedOrders.stream()
+                .map(TradeOrder::getItemId)
+                .distinct()
+                .collect(Collectors.toList());
+
         LambdaQueryWrapper<Item> itemQ = new LambdaQueryWrapper<Item>()
+                .in(Item::getId, itemIds)
                 .isNotNull(Item::getTradeLocation)
                 .ne(Item::getTradeLocation, "");
         if (schoolId != null) {
             itemQ.eq(Item::getSchoolId, schoolId);
         }
+        Map<Long, String> locationMap = itemMapper.selectList(itemQ).stream()
+                .collect(Collectors.toMap(Item::getId, Item::getTradeLocation, (a, b) -> a));
 
-        List<Item> items = itemMapper.selectList(itemQ);
-        if (items.isEmpty()) {
-            return java.util.List.of();
-        }
-
-        // 按地点分组统计
+        // 3. 按 location 统计 COMPLETED 订单数
         Map<String, Long> locationCount = new java.util.LinkedHashMap<>();
-        for (Item item : items) {
-            String loc = item.getTradeLocation().trim();
-            if (loc.isEmpty()) continue;
-            locationCount.merge(loc, 1L, Long::sum);
+        for (TradeOrder o : completedOrders) {
+            String loc = locationMap.get(o.getItemId());
+            if (loc == null || loc.trim().isEmpty()) continue;
+            locationCount.merge(loc.trim(), 1L, Long::sum);
         }
 
-        // 按次数降序排列
+        // 4. 按次数降序排列
         return locationCount.entrySet().stream()
                 .map(e -> new TradeHeatmapVO(e.getKey(), e.getValue()))
                 .sorted((a, b) -> Long.compare(b.getCount(), a.getCount()))

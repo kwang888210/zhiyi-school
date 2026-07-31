@@ -24,12 +24,28 @@ SET @item_feature_columns = (
 );
 SET @add_item_feature_sql = IF(
     @item_feature_columns = 0,
-    'ALTER TABLE item ADD COLUMN pickup_location VARCHAR(255) NULL COMMENT ''跑腿取件地点'' AFTER trade_location, ADD COLUMN delivery_location VARCHAR(255) NULL COMMENT ''跑腿送达地点'' AFTER pickup_location, ADD COLUMN deadline_time DATETIME NULL COMMENT ''期望出手/跑腿截止时间'' AFTER delivery_location, ADD INDEX idx_type_deadline (school_id, type, deadline_time)',
+    'ALTER TABLE item ADD COLUMN pickup_location VARCHAR(255) NULL COMMENT ''跑腿取件地点'' AFTER trade_location, ADD COLUMN delivery_location VARCHAR(255) NULL COMMENT ''跑腿送达地点'' AFTER pickup_location, ADD COLUMN deadline_time DATETIME NULL COMMENT ''期望出手/跑腿截止时间'' AFTER delivery_location',
     'SELECT 1'
 );
 PREPARE add_item_feature_stmt FROM @add_item_feature_sql;
 EXECUTE add_item_feature_stmt;
 DEALLOCATE PREPARE add_item_feature_stmt;
+
+-- 为 school_id + type + deadline_time 创建索引（若不存在则创建）
+SET @idx_type_deadline_exists = (
+    SELECT COUNT(*) FROM information_schema.statistics
+    WHERE table_schema = DATABASE()
+      AND table_name = 'item'
+      AND index_name = 'idx_type_deadline'
+);
+SET @add_idx_type_deadline_sql = IF(
+    @idx_type_deadline_exists = 0,
+    'ALTER TABLE item ADD INDEX idx_type_deadline (school_id, type, deadline_time)',
+    'SELECT 1'
+);
+PREPARE add_idx_type_deadline_stmt FROM @add_idx_type_deadline_sql;
+EXECUTE add_idx_type_deadline_stmt;
+DEALLOCATE PREPARE add_idx_type_deadline_stmt;
 
 CREATE TABLE IF NOT EXISTS event_topic (
     id BIGINT NOT NULL AUTO_INCREMENT,

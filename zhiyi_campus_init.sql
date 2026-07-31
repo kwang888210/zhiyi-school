@@ -51,6 +51,7 @@ CREATE TABLE sys_user (
     phone           VARCHAR(20)     DEFAULT NULL             COMMENT '手机号',
     school_id       BIGINT          NOT NULL                 COMMENT '所属学校ID（普通功能按学校隔离；管理员默认上海大学）',
     school_email    VARCHAR(100)    DEFAULT NULL             COMMENT '学校邮箱（可选，后缀须与所属学校匹配）',
+    email_verified  TINYINT(1)      NOT NULL DEFAULT 0       COMMENT '学校邮箱是否已验证',
     campus          VARCHAR(50)     DEFAULT NULL             COMMENT '校区（个人中心自愿补全，智能推荐与信任标签使用）',
     college         VARCHAR(50)     DEFAULT NULL             COMMENT '学院（个人中心自愿补全，信任标签用）',
     grade           VARCHAR(10)     DEFAULT NULL             COMMENT '年级（个人中心自愿补全，信任标签用）',
@@ -342,7 +343,7 @@ INSERT INTO school (name, code, email_domain) VALUES
 INSERT INTO sys_user (student_id, password, nickname, school_id, role, status, level, exp, wallet_balance, security_question, security_answer)
 VALUES (
     'admin',
-    '$2a$10$8Jcbe5NyLSowgw.3zOB9bOgoKCpwTuoHWLDAv0robpXmRA10hBngS',  -- BCrypt 哈希
+    '$2a$10$or0s3jeC85J07b8HcY9wfOJDE0gegLcyYkjFLn0yr.BE8koej.A1K',  -- 密码 123456
     '系统管理员',
     (SELECT id FROM school WHERE code = 'SHU'),
     'ADMIN',
@@ -351,7 +352,7 @@ VALUES (
     0,
     0.00,
     '系统预设问题',
-    '$2a$10$UpZYvV84lq5Ukv7V4X154eYi795.l8klweRTlunpaf6kptgei.TJC'  -- BCrypt 哈希
+    '$2a$10$or0s3jeC85J07b8HcY9wfOJDE0gegLcyYkjFLn0yr.BE8koej.A1K'  -- 密码 123456
 );
 
 -- -----------------------------------------------------------

@@ -15,4 +15,6 @@ public class PublicUserCardVO {
     private String levelTitle;
     /** 学校名称（A8：公开名片展示归属校，未绑定为 null） */
     private String schoolName;
+    /** 学校邮箱是否已验证 */
+    private Boolean emailVerified;
 }

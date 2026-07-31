@@ -5,7 +5,9 @@ import com.zhiyi.module.user.dto.LoginDTO;
 import com.zhiyi.module.user.dto.RegisterDTO;
 import com.zhiyi.module.user.dto.ResetPasswordDTO;
 import com.zhiyi.module.user.service.AuthService;
+import com.zhiyi.module.user.service.EmailVerificationService;
 import com.zhiyi.module.user.vo.LoginVO;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
@@ -32,6 +34,7 @@ import java.util.Map;
 public class AuthController {
 
     private final AuthService authService;
+    private final EmailVerificationService emailVerificationService;
 
     @PostMapping("/register")
     public Result<LoginVO> register(@Valid @RequestBody RegisterDTO dto) {
@@ -59,6 +62,30 @@ public class AuthController {
     public Result<Void> resetPassword(@Valid @RequestBody ResetPasswordDTO dto) {
         authService.resetPassword(dto);
         return Result.ok("密码重置成功，请重新登录", null);
+    }
+
+    /**
+     * 发送学校邮箱验证码（A3）
+     */
+    @PostMapping("/send-verify-code")
+    public Result<Map<String, String>> sendVerifyCode(HttpServletRequest request) {
+        Long userId = (Long) request.getAttribute("userId");
+        String email = request.getParameter("email");
+        String code = emailVerificationService.sendCode(userId, email);
+        // 演示模式：返回验证码（生产环境应删除此字段）
+        return Result.ok(Map.of("code", code, "message", "验证码已发送至 " + email));
+    }
+
+    /**
+     * 验证学校邮箱（A3）
+     */
+    @PostMapping("/verify-email")
+    public Result<?> verifyEmail(HttpServletRequest request) {
+        Long userId = (Long) request.getAttribute("userId");
+        String email = request.getParameter("email");
+        String code = request.getParameter("code");
+        emailVerificationService.verify(userId, email, code);
+        return Result.ok("邮箱验证成功 ✅");
     }
 
 }

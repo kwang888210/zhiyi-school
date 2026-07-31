@@ -85,4 +85,15 @@ public class AdminSchoolService {
         log.info("管理员编辑学校：{} ({})", school.getName(), school.getCode());
         return SchoolVO.from(school);
     }
+
+    /** 删除学校 */
+    @Transactional(rollbackFor = Exception.class)
+    public void delete(Long id) {
+        School school = schoolMapper.selectById(id);
+        if (school == null) {
+            throw new BusinessException(ResultCode.NOT_FOUND, "学校不存在");
+        }
+        schoolMapper.deleteById(id);
+        log.info("管理员删除学校：{} ({})", school.getName(), school.getCode());
+    }
 }

@@ -192,14 +192,14 @@ public class UserService {
     public PublicUserCardVO getPublicProfile(Long userId) {
         SysUser user = userMapper.selectOne(Wrappers.<SysUser>lambdaQuery()
                 .select(SysUser::getId, SysUser::getNickname, SysUser::getLevel,
-                        SysUser::getSchoolId)
+                        SysUser::getSchoolId, SysUser::getEmailVerified)
                 .eq(SysUser::getId, userId));
         if (user == null) {
             throw new BusinessException(ResultCode.USER_NOT_FOUND);
         }
         return new PublicUserCardVO(
                 user.getId(), user.getNickname(), user.getLevel(), LevelRule.titleOf(user.getLevel()),
-                schoolService.schoolNameOf(user.getSchoolId()));
+                schoolService.schoolNameOf(user.getSchoolId()), user.getEmailVerified());
     }
 
     /**
