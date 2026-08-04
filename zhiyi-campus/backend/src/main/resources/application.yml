@@ -14,7 +14,7 @@ spring:
   datasource:
     url: jdbc:mysql://localhost:3306/zhiyi_campus?useUnicode=true&characterEncoding=UTF-8&serverTimezone=Asia/Shanghai&rewriteBatchedStatements=true
     username: ${MYSQL_USERNAME:root}
-    password: ${MYSQL_PASSWORD}
+    password: ${MYSQL_PASSWORD:password}
     driver-class-name: com.mysql.cj.jdbc.Driver
     # ── HikariCP 连接池调优 ──
     # 池不宜过大（MySQL 上下文切换反而变慢），靠"快进快出"支撑高并发
@@ -34,7 +34,7 @@ mybatis-plus:
   configuration:
     map-underscore-to-camel-case: true       # 驼峰转换：ban_until_time → banUntilTime
     # ⚠️ 压测/生产前请注释掉下面一行：stdout 打 SQL 是同步 IO，高并发下是巨大瓶颈
-    log-impl: org.apache.ibatis.logging.stdout.StdOutImpl  # 打印 SQL（开发阶段开着）
+    # log-impl: org.apache.ibatis.logging.stdout.StdOutImpl  # 打印 SQL（开发阶段开着）
   global-config:
     db-config:
       id-type: auto
@@ -48,7 +48,7 @@ zhiyi:
   upload-path: ./uploads                     # 图片存储目录
   # JWT 配置
   jwt:
-    secret: ${JWT_SECRET}
+    secret: ${JWT_SECRET:JWT_SECRET_EXAMPLE_2026_ZHIYI_SCHOOL}
     expiration: 86400000                     # 24小时（毫秒）
   # AI 接口（通义千问 / 文心一言 等，按实际情况填写）
   ai:
