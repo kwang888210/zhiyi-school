@@ -27,6 +27,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -161,6 +162,21 @@ class OrderServiceTest {
             BusinessException ex = assertThrows(BusinessException.class,
                     () -> orderService.createOrder(BUYER_ID, dto));
             assertTrue(ex.getMessage().contains("求购"));
+        }
+
+        @Test
+        void shouldRejectItemPastItsDeadline() {
+            Item item = onSaleItem();
+            item.setDeadlineTime(LocalDateTime.now().minusMinutes(1));
+            CreateOrderDTO dto = new CreateOrderDTO();
+            dto.setItemId(ITEM_ID);
+            when(itemMapper.selectById(ITEM_ID)).thenReturn(item);
+
+            BusinessException ex = assertThrows(BusinessException.class,
+                    () -> orderService.createOrder(BUYER_ID, dto));
+
+            assertTrue(ex.getMessage().contains("截止时间"));
+            verifyNoInteractions(orderMapper, sysUserMapper);
         }
 
         @Test

@@ -68,8 +68,9 @@ public class AdminManageController {
      * 商品传承链（D3）
      */
     @GetMapping("/item/{id}/lineage")
-    public Result<ItemLineageVO> lineage(@PathVariable Long id) {
-        return Result.ok(lineageService.getLineage(id));
+    public Result<ItemLineageVO> lineage(@PathVariable Long id,
+                                         @RequestParam(required = false) Long schoolId) {
+        return Result.ok(lineageService.getLineage(id, schoolId));
     }
 
     /**

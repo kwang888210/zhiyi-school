@@ -18,6 +18,7 @@ import com.zhiyi.module.user.dto.BanUserDTO;
 import com.zhiyi.module.user.entity.SysUser;
 import com.zhiyi.module.user.mapper.SysUserMapper;
 import com.zhiyi.module.user.service.BanService;
+import com.zhiyi.module.user.service.ReputationPenaltyService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -31,8 +32,8 @@ import java.util.stream.Collectors;
 /**
  * 超管违规审核服务 —— 4.5 人工审核与风控工作台
  *
- * 确认违规 → 处罚用户（调 A 模块 BanService）
- * 误判放行 → 撤销违规记录
+ * 确认违规 → 处罚用户（调 A 模块 BanService）并写入独立信誉处罚
+ * 误判放行 → 标记报告为 DISMISSED，并将关联商品重新上架
  */
 @Slf4j
 @Service
@@ -44,6 +45,7 @@ public class AdminViolationService {
     private final ItemMapper itemMapper;
     private final BanService banService;
     private final ViolationLogMapper violationLogMapper;
+    private final ReputationPenaltyService reputationPenaltyService;
 
     /**
      * 分页查询违规记录列表
@@ -114,6 +116,10 @@ public class AdminViolationService {
         banDTO.setReason(dto.getReason());
         banDTO.setBanDays(dto.getBanDays());
         banService.punish(banDTO, adminId);
+
+        // 3. 独立信誉处罚：不修改或占用真实交易评价
+        reputationPenaltyService.recordPenalty(
+                report.getId(), report.getUserId(), adminId, dto.getType(), dto.getReason());
 
         log.info("管理员 {} 确认违规 reportId={}, 处罚用户 {} type={}", adminId, reportId, report.getUserId(), dto.getType());
     }
@@ -196,10 +202,10 @@ public class AdminViolationService {
     }
 
     /**
-     * 用户处罚评分统计（D4：评价联动）
+     * 用户处罚评分统计（D4：独立信誉处罚）
      *
-     * 核心逻辑：CONFIRMED 的违规记录 = 有效处罚，DISMISSED = 已恢复。
-     * 供 A6 信誉雷达调用，汇总违规记录对信誉的负面影响。
+     * CONFIRMED 报告用于统计确认次数，DISMISSED 报告不产生处罚记录。
+     * 合规度统一从独立信誉处罚记录聚合，警告/封禁次数仍从处罚日志统计。
      */
     public PenaltyStatsVO getPenaltyStats(Long userId) {
         PenaltyStatsVO vo = new PenaltyStatsVO();
@@ -225,10 +231,10 @@ public class AdminViolationService {
                         .in(ViolationLog::getType, "BAN_TEMP", "BAN_PERM"));
         vo.setBanCount(banCount);
 
-        // 处罚影响分：每次警告 -5，每次封禁 -15，最低 0
-        int penalty = (int) (warningCount * 5 + banCount * 15);
-        vo.setPenaltyScore(Math.max(0, 100 - penalty));
+        // 与用户信誉雷达的“合规度”使用同一套独立处罚记录。
+        vo.setPenaltyScore(reputationPenaltyService.complianceScore(userId));
 
         return vo;
     }
+
 }

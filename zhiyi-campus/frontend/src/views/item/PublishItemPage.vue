@@ -82,7 +82,7 @@
             <p class="hint">支持 jpg / png / webp，单张 ≤ 5MB，最多 9 张；首张自动作为封面</p>
           </el-form-item>
 
-          <el-form-item prop="tradeLocation" class="field">
+          <el-form-item v-if="form.type !== 'ERRAND'" prop="tradeLocation" class="field">
             <label for="publish-location">交易地点 <span class="req">*</span></label>
             <input id="publish-location" v-model.trim="form.tradeLocation" class="input" maxlength="255" placeholder="如：图书馆门口、食堂三楼">
             <div class="location-tags">
@@ -103,7 +103,13 @@
 
           <el-form-item prop="deadlineTime" class="field">
             <label for="deadline-time">{{ form.type === 'ERRAND' ? '跑腿截止时间' : '期望出手截止时间' }} <span v-if="form.type === 'ERRAND'" class="req">*</span></label>
-            <input id="deadline-time" v-model="form.deadlineTime" class="input" type="datetime-local" :min="minimumDeadline">
+            <AppDateTimePicker
+              id="deadline-time"
+              v-model="form.deadlineTime"
+              :min="minimumDeadline"
+              :placeholder="form.type === 'ERRAND' ? '选择跑腿截止日期与时间' : '选择期望出手日期与时间'"
+              aria-label="截止日期与时间"
+            />
             <p class="hint">{{ form.type === 'ERRAND' ? '跑腿任务必须填写未来的截止时间' : '可选；临近截止时商品卡片会显示倒计时提醒' }}</p>
           </el-form-item>
 
@@ -143,6 +149,7 @@
 import { computed, nextTick, onMounted, reactive, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
+import AppDateTimePicker from '@/components/common/AppDateTimePicker.vue'
 import AppSelect from '@/components/common/AppSelect.vue'
 import DefaultLayout from '@/components/layout/DefaultLayout.vue'
 import { getCategories, getOwnItem, publishItem, updateItem, uploadItemImage } from '@/api/item'
@@ -198,7 +205,7 @@ const rules = {
     if (typeof value !== 'number' || value < (form.type === 'ERRAND' ? 1 : 0.01) || (form.type === 'ERRAND' && value > 20)) return callback(new Error(form.type === 'ERRAND' ? '悬赏须在 ¥1–20 之间' : '请输入有效价格'))
     callback()
   }, trigger: 'change' }],
-  tradeLocation: [{ required: true, message: '请输入交易地点', trigger: 'blur' }],
+  tradeLocation: [{ validator: (_rule, value, callback) => form.type === 'ERRAND' || value ? callback() : callback(new Error('请输入交易地点')), trigger: 'blur' }],
   pickupLocation: [{ validator: (_rule, value, callback) => form.type !== 'ERRAND' || value ? callback() : callback(new Error('请输入取件地点')), trigger: 'blur' }],
   deliveryLocation: [{ validator: (_rule, value, callback) => form.type !== 'ERRAND' || value ? callback() : callback(new Error('请输入送达地点')), trigger: 'blur' }],
   deadlineTime: [{ validator: (_rule, value, callback) => {
@@ -235,7 +242,7 @@ function setType(type) {
   if (type === 'SWAP') form.price = null
   else if (type === 'ERRAND' && (!form.price || form.price > 20)) form.price = 5
   else if (form.price == null) form.price = 1
-  formRef.value?.clearValidate(['price', 'pickupLocation', 'deliveryLocation', 'deadlineTime'])
+  formRef.value?.clearValidate(['price', 'tradeLocation', 'pickupLocation', 'deliveryLocation', 'deadlineTime'])
   formRef.value?.validateField('type')
 }
 function validateImage(file) {
@@ -263,9 +270,14 @@ async function handleSubmit() {
   }
   submitting.value = true
   try {
+    const payload = {
+      ...form,
+      tradeLocation: form.type === 'ERRAND' ? null : form.tradeLocation,
+      deadlineTime: form.deadlineTime || null,
+    }
     const res = editMode.value
-      ? await updateItem(route.params.id, { ...form, deadlineTime: form.deadlineTime || null })
-      : await publishItem({ ...form, deadlineTime: form.deadlineTime || null })
+      ? await updateItem(route.params.id, payload)
+      : await publishItem(payload)
     if (!editMode.value) localStorage.removeItem('zhiyi-publish-draft')
     ElMessage.success(editMode.value ? '修改成功' : '发布成功，已进入商品大厅')
     router.push(`/item/${res.data.id}`)

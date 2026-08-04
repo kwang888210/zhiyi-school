@@ -286,7 +286,31 @@ CREATE TABLE violation_log (
 
 
 -- -----------------------------------------------------------
--- 2.10 exp_log — 经验值变动记录表（模块一成长体系）
+-- 2.10 reputation_penalty — 独立信誉处罚记录表
+-- -----------------------------------------------------------
+CREATE TABLE reputation_penalty (
+    id          BIGINT          NOT NULL AUTO_INCREMENT  COMMENT '记录ID',
+    report_id   BIGINT          NOT NULL                 COMMENT '关联违规报告ID（一条报告仅一条信誉处罚）',
+    user_id     BIGINT          NOT NULL                 COMMENT '被处罚用户ID',
+    admin_id    BIGINT          NOT NULL                 COMMENT '操作管理员ID',
+    type        VARCHAR(20)     NOT NULL                 COMMENT '处罚类型：WARNING/BAN_TEMP/BAN_PERM',
+    points      INT             NOT NULL                 COMMENT '合规度扣分',
+    reason      VARCHAR(500)    NOT NULL                 COMMENT '处罚原因',
+    status      VARCHAR(20)     NOT NULL DEFAULT 'ACTIVE' COMMENT '状态：ACTIVE/REVOKED',
+    created_at  DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    revoked_at  DATETIME        DEFAULT NULL             COMMENT '撤销时间',
+
+    PRIMARY KEY (id),
+    UNIQUE KEY uk_reputation_penalty_report (report_id),
+    INDEX idx_reputation_penalty_user_status (user_id, status),
+    CONSTRAINT fk_rp_report FOREIGN KEY (report_id) REFERENCES violation_report(id),
+    CONSTRAINT fk_rp_user   FOREIGN KEY (user_id)   REFERENCES sys_user(id),
+    CONSTRAINT fk_rp_admin  FOREIGN KEY (admin_id)  REFERENCES sys_user(id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='独立信誉处罚记录表';
+
+
+-- -----------------------------------------------------------
+-- 2.11 exp_log — 经验值变动记录表（模块一成长体系）
 -- -----------------------------------------------------------
 CREATE TABLE exp_log (
     id          BIGINT          NOT NULL AUTO_INCREMENT  COMMENT '记录ID',
@@ -304,7 +328,7 @@ CREATE TABLE exp_log (
 
 
 -- -----------------------------------------------------------
--- 2.11 trade_review — 交易评价表（模块一创新功能：信誉体系）
+-- 2.12 trade_review — 交易评价表（模块一创新功能：信誉体系）
 -- -----------------------------------------------------------
 CREATE TABLE trade_review (
     id          BIGINT          NOT NULL AUTO_INCREMENT  COMMENT '评价ID',
@@ -342,7 +366,7 @@ INSERT INTO school (name, code, email_domain) VALUES
 INSERT INTO sys_user (student_id, password, nickname, school_id, role, status, level, exp, wallet_balance, security_question, security_answer)
 VALUES (
     'admin',
-    '$2a$10$8Jcbe5NyLSowgw.3zOB9bOgoKCpwTuoHWLDAv0robpXmRA10hBngS',  -- BCrypt 哈希
+    '$2a$10$or0s3jeC85J07b8HcY9wfOJDE0gegLcyYkjFLn0yr.BE8koej.A1K',  -- 密码 123456
     '系统管理员',
     (SELECT id FROM school WHERE code = 'SHU'),
     'ADMIN',
@@ -351,7 +375,7 @@ VALUES (
     0,
     0.00,
     '系统预设问题',
-    '$2a$10$UpZYvV84lq5Ukv7V4X154eYi795.l8klweRTlunpaf6kptgei.TJC'  -- BCrypt 哈希
+    '$2a$10$or0s3jeC85J07b8HcY9wfOJDE0gegLcyYkjFLn0yr.BE8koej.A1K'  -- 密码 123456
 );
 
 -- -----------------------------------------------------------

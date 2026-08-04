@@ -55,7 +55,7 @@ export function getUserRelation(userId) {
   return request.get(`/user/${userId}/relation`)
 }
 
-// 信誉雷达五维分值（A6，公开）
+// 信誉雷达六维分值（A6，公开）
 export function getUserReputation(userId) {
   return request.get(`/user/${userId}/reputation`)
 }

@@ -53,8 +53,9 @@ export function getTradeHeatmap(schoolId) {
 }
 
 /** 商品传承链（D3） */
-export function getItemLineage(itemId) {
-  return request.get(`/admin/item/${itemId}/lineage`)
+export function getItemLineage(itemId, schoolId) {
+  const params = schoolId != null ? { schoolId } : {}
+  return request.get(`/admin/item/${itemId}/lineage`, { params })
 }
 
 /** 强制下架商品 */
@@ -84,9 +85,9 @@ export function getAdminUnreadMessages(params) {
   return request.get('/admin/chat/unread', { params })
 }
 
-/** 学校管理（D1） */
-export function getSchools() {
-  return request.get('/admin/schools')
+/** 学校管理（D1）。传 {status:'ACTIVE'} 仅返回启用学校，不传返回全部 */
+export function getSchools(params) {
+  return request.get('/admin/schools', { params })
 }
 
 export function createSchool(data) {
@@ -95,6 +96,10 @@ export function createSchool(data) {
 
 export function updateSchool(id, data) {
   return request.put(`/admin/schools/${id}`, data)
+}
+
+export function deleteSchool(id) {
+  return request.delete(`/admin/schools/${id}`)
 }
 
 /** 分类管理 */

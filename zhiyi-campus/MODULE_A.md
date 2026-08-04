@@ -1,6 +1,6 @@
 # 模块一：用户认证与成长体系（成员 A）
 
-> 负责人：A | 涉及表：`sys_user`、`school`、`item`、`trade_order`、`trade_review`、`chat_message`、`violation_log`、`exp_log` | 分支：`A`
+> 负责人：A | 涉及表：`sys_user`、`school`、`item`、`trade_order`、`trade_review`、`reputation_penalty`、`chat_message`、`violation_log`、`exp_log` | 分支：`A`
 
 ## 一、已实现功能（对照需求 1.1–1.6 及 A 分支扩展）
 
@@ -14,7 +14,7 @@
 | 1.6 违规封禁 | 警告/限时/永久三级，violation_log 可追溯，封禁立即踢下线，发布处罚事件，到期自动恢复，提前解封（**仅后端接口；管理端 UI 归 D 的超管控制台**） | ✅ 自动化测试通过 |
 | 扩展：账号安全 | **修改密码**（验证原密码、新旧不得相同、全端强制下线）、**注销账号**（软注销 CANCELLED：密码二次确认、有进行中订单禁止注销、在售商品自动下架、学号保留占用、管理员可恢复） | ✅ 自动化测试通过 |
 | 扩展：学校与校园身份 | 注册必选学校、学校邮箱后缀校验、学院/年级/校区/宿舍资料、同学院/同级/同校区/同楼关系标签；商品发布时固化学校，普通商品流量按所属学校隔离 | ✅ 自动化测试通过 |
-| 扩展：交易评价与信誉 | 完成订单后一单一评；基于交易完成率、响应速度、描述准确度、历史好评、近 30 天活跃度生成五维信誉雷达 | ✅ 自动化测试通过 |
+| 扩展：交易评价与信誉 | 完成订单后一单一评；原五维保持真实交易语义，独立信誉处罚折算为“合规度”，生成六维信誉雷达 | ✅ 自动化测试通过 |
 | 扩展：管理员学校边界 | 管理员由初始化 SQL 默认归属上海大学；访问普通接口时与普通用户一样受学校限制，只有 `/api/admin/**` 保持全平台管理范围 | ✅ 自动化测试通过 |
 | 扩展：跨校安全 | 后端拦截跨校下单、收藏、查看卖家联系方式、联系卖家和普通聊天；管理后台客服使用独立管理员接口跨校处理 | ✅ 自动化测试通过 |
 | 扩展：界面一致性 | 自定义 `AppSelect`、评价弹窗、卖家详情、信誉雷达，并统一对话框、确认框、下拉菜单、选择器和顶部消息提示的项目视觉与图层 | ✅ 前端测试及构建通过 |
@@ -40,7 +40,7 @@
 | GET | `/api/user/{id}/card` | 用户公开名片，返回昵称、等级和学校名称 |
 | GET | `/api/user/{id}/seller-detail` | 本校卖家详情与其主动填写的联系方式/校园资料 |
 | GET | `/api/user/{id}/relation` | 当前用户视角的同学院/同级/同校区/同楼关系标签 |
-| GET | `/api/user/{id}/reputation` | 用户五维信誉分与评价样本数 |
+| GET | `/api/user/{id}/reputation` | 用户六维信誉分与评价样本数 |
 | POST | `/api/order/{id}/review` | 买家对已完成订单进行一单一评 |
 | PUT | `/api/user/change-password` | 修改密码 `{oldPassword, newPassword, confirmPassword}`（新旧不得相同） |
 | POST | `/api/user/cancel-account` | 注销账号 `{password}`（软注销，进行中订单存在时返回 409） |
@@ -132,13 +132,14 @@ node load-test.mjs — GET /api/user/profile（走 JWT 全链路 + DB 查询）
 ## 五、数据库变更（相对初版 SQL）
 
 1. `sys_user` 新增 `token_version INT NOT NULL DEFAULT 0`（Token 版本）。
-2. 新增 `exp_log` 表（经验流水，见 `zhiyi_campus_init.sql` 2.10）。
+2. 新增 `exp_log` 表（经验流水，见 `zhiyi_campus_init.sql` 2.11）。
 3. 新增 `school` 字典表，初始化上海大学（`SHU`）和东华大学（`DHU`）及学校邮箱后缀。
 4. `sys_user` 新增 `school_id`、`school_email`、`campus`、`college`、`grade`、`dormitory`，并以 `(school_id, student_id)` 联合唯一标识账号；`item` 新增并索引 `school_id`。
 5. 新增 `trade_review` 表；`order_id` 唯一索引保证一单一评，并保存星级、描述准确性和评价文本。
-6. 管理员初始密码占位哈希替换为 BCrypt 哈希，并在初始化 SQL 中直接关联 `code='SHU'` 的上海大学；初始化后请在本地重置管理员密码，不在文档中写明文口令。
-7. `sys_user.status` 新增取值 `CANCELLED`（已注销，软注销；无需改表结构，仅枚举语义扩展）。
-8. 新环境直接执行 `zhiyi_campus_init.sql`；已有数据库先执行 `module1_school_login_migration.sql`，再执行 `module1_campus_migration.sql`，分别升级学校登录约束和补充可选校区字段。
+6. 新增 `reputation_penalty` 表；一条已确认违规报告对应一条独立信誉处罚，不写入或修改买家的 `trade_review`。
+7. 管理员初始密码占位哈希替换为 BCrypt 哈希，并在初始化 SQL 中直接关联 `code='SHU'` 的上海大学；初始化后请在本地重置管理员密码，不在文档中写明文口令。
+8. `sys_user.status` 新增取值 `CANCELLED`（已注销，软注销；无需改表结构，仅枚举语义扩展）。
+9. 新环境直接执行 `zhiyi_campus_init.sql`；已有数据库先执行 `module1_school_login_migration.sql`、`module1_campus_migration.sql`，再执行 `module2_setup.sql` 补齐模块二及独立信誉处罚表。
 
 ## 六、本地启动
 

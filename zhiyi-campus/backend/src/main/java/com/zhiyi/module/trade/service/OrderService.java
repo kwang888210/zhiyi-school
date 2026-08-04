@@ -72,6 +72,10 @@ public class OrderService {
         if (!"SELL".equals(item.getType())) {
             throw new BusinessException(ResultCode.BAD_REQUEST, "仅支持购买出售类型的商品，求购请直接联系发布者");
         }
+        if (item.getDeadlineTime() != null
+                && !item.getDeadlineTime().isAfter(LocalDateTime.now())) {
+            throw new BusinessException(ResultCode.BAD_REQUEST, "商品已过截止时间，无法下单");
+        }
         if (item.getPublisherId().equals(buyerId)) {
             throw new BusinessException(ResultCode.BAD_REQUEST, "不能购买自己发布的商品");
         }

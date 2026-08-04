@@ -90,6 +90,7 @@ public class UserService {
         if (emailProvided && targetEmail != null) {
             patch.setSchoolEmail(targetEmail);
         }
+
         // 传了才更新；空串归一化为 null，等价于「清空该项」，不参与信任标签比对
         if (campusProvided && targetCampus != null) {
             patch.setCampus(targetCampus);

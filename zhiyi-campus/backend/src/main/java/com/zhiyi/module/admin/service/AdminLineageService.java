@@ -34,10 +34,26 @@ public class AdminLineageService {
     private final TradeOrderMapper orderMapper;
     private final SysUserMapper userMapper;
 
+    /**
+     * 用户端兼容入口：用户接口已在调用前完成同校可见性校验。
+     */
     public ItemLineageVO getLineage(Long itemId) {
+        return getLineage(itemId, null);
+    }
+
+    public ItemLineageVO getLineage(Long itemId, Long schoolId) {
         Item item = itemMapper.selectById(itemId);
         if (item == null) {
             throw new BusinessException(ResultCode.NOT_FOUND, "商品不存在");
+        }
+
+        // 学校隔离：指定 schoolId 时仅返回该校商品的传承链
+        if (schoolId != null && !schoolId.equals(item.getSchoolId())) {
+            ItemLineageVO vo = new ItemLineageVO();
+            vo.setItemId(itemId);
+            vo.setItemTitle("未知商品");
+            vo.setChain(List.of());
+            return vo;
         }
 
         ItemLineageVO vo = new ItemLineageVO();

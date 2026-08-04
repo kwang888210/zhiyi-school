@@ -28,9 +28,9 @@ import java.util.Objects;
 import java.util.Set;
 
 /**
- * 信誉雷达聚合服务（A6）—— 把交易、评价、聊天数据折算成五维 0-100 分值。
+ * 信誉雷达聚合服务（A6）—— 把交易、评价、聊天和独立处罚记录折算成六维 0-100 分值。
  *
- * 无数据的新用户给中性基线（60），避免雷达图塌缩到 0 让新卖家显得可疑。
+ * 无交易/评价数据时相关维度给中性基线（60）；无有效处罚时合规度为 100。
  */
 @Service
 @RequiredArgsConstructor
@@ -46,6 +46,7 @@ public class ReputationService {
     private final ChatMessageMapper chatMapper;
     private final ItemMapper itemMapper;
     private final SysUserMapper userMapper;
+    private final ReputationPenaltyService penaltyService;
 
     public ReputationVO compute(Long userId) {
         if (userId == null || userMapper.selectById(userId) == null) {
@@ -59,9 +60,10 @@ public class ReputationService {
         int accuracy = accuracy(reviews);
         int praise = praise(reviews);
         int activity = activity(userId);
+        int compliance = penaltyService.complianceScore(userId);
 
         return new ReputationVO(userId, completionRate, responseSpeed,
-                accuracy, praise, activity, reviews.size());
+                accuracy, praise, activity, compliance, reviews.size());
     }
 
     /** 交易完成率：completed / (completed + cancelled)，无单给基线。 */

@@ -3,8 +3,8 @@ package com.zhiyi.module.admin.vo;
 import lombok.Data;
 
 /**
- * 用户处罚评分统计（D4：评价联动）
- * 供 A6 信誉雷达查询，将违规处罚纳入信誉计算
+ * 用户处罚评分统计（D4：独立信誉处罚）
+ * 供管理端查询违规次数及独立处罚记录计算出的合规度
  */
 @Data
 public class PenaltyStatsVO {
@@ -15,6 +15,6 @@ public class PenaltyStatsVO {
     private long warningCount;
     /** 封禁次数（临时+永久） */
     private long banCount;
-    /** 处罚对信誉的影响分（0-100，越低影响越大） */
+    /** 独立处罚折算后的合规度（0-100，越高越合规） */
     private int penaltyScore;
 }

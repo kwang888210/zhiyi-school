@@ -64,7 +64,7 @@
                 </div>
                 <span v-else>暂无标签</span>
               </div>
-              <div class="meta-row">
+              <div v-if="item.type !== 'ERRAND'" class="meta-row">
                 <span class="lab">交易地点</span><strong>{{ item.tradeLocation || '待沟通' }}</strong>
               </div>
               <div v-if="item.type === 'ERRAND'" class="meta-row">

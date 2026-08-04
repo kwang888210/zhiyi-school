@@ -280,7 +280,7 @@ const schoolOptions = computed(() => {
 
 async function loadSchools() {
   try {
-    const res = await getSchools()
+    const res = await getSchools({ status: 'ACTIVE' })
     schools.value = res.data || []
   } catch { /* ignore */ }
 }
