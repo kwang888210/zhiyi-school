@@ -400,7 +400,10 @@ public class MarketplaceService {
                                                        NeighborPriority neighborPriority) {
         LambdaQueryWrapper<Item> wrapper = new LambdaQueryWrapper<Item>()
                 .eq(Item::getStatus, "ON_SALE")
-                .eq(Item::getSchoolId, schoolId);
+                .eq(Item::getSchoolId, schoolId)
+                // 过滤已过截止时间的商品（无截止时间或截止时间在未来才展示）
+                .and(w -> w.isNull(Item::getDeadlineTime)
+                        .or().gt(Item::getDeadlineTime, LocalDateTime.now()));
         if (StringUtils.hasText(keyword)) {
             String kw = keyword.trim();
             wrapper.and(w -> w.like(Item::getTitle, kw)
@@ -552,7 +555,7 @@ public class MarketplaceService {
                 vo.setPublisherNickname(publisher.getNickname());
                 vo.setPublisherLevel(publisher.getLevel());
                 vo.setPublisherLevelTitle(LevelRule.titleOf(publisher.getLevel()));
-                vo.setPublisherVerified(StringUtils.hasText(publisher.getSchoolEmail()));
+                vo.setPublisherVerified(Boolean.TRUE.equals(publisher.getEmailVerified()));
                 vo.setDormitoryRelation(proximityRelation(viewer, publisher));
             }
             vo.setType(item.getType());

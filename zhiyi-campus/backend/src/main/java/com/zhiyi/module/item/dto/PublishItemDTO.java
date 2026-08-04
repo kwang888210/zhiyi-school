@@ -39,7 +39,7 @@ public class PublishItemDTO {
     @Size(max = 9, message = "最多上传9张图片")
     private List<@NotBlank(message = "图片地址不能为空") String> images;
 
-    @NotBlank(message = "交易地点不能为空")
+    // 交易地点：ERRAND 类型不需要（有 pickup/delivery 代替），其余类型必填
     @Size(max = 255, message = "交易地点不能超过255字")
     private String tradeLocation;
 
@@ -57,6 +57,7 @@ public class PublishItemDTO {
             return price == null;
         }
         if ("ERRAND".equals(type)) {
+            // ERRAND：悬赏 ¥1-20，无需 tradeLocation（以 pickup/delivery 代替）
             return price != null
                     && price.compareTo(BigDecimal.ONE) >= 0
                     && price.compareTo(new BigDecimal("20")) <= 0
@@ -64,6 +65,9 @@ public class PublishItemDTO {
                     && deliveryLocation != null && !deliveryLocation.isBlank()
                     && deadlineTime != null && deadlineTime.isAfter(LocalDateTime.now());
         }
-        return price != null && (deadlineTime == null || deadlineTime.isAfter(LocalDateTime.now()));
+        // SELL / BUY：tradeLocation 必填
+        return price != null
+                && tradeLocation != null && !tradeLocation.isBlank()
+                && (deadlineTime == null || deadlineTime.isAfter(LocalDateTime.now()));
     }
 }

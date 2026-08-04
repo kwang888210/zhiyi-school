@@ -90,6 +90,14 @@ public class UserService {
         if (emailProvided && targetEmail != null) {
             patch.setSchoolEmail(targetEmail);
         }
+
+        // 学校邮箱或学校变更时，之前的验证状态失效，需重新验证
+        boolean emailChanged = emailProvided && !Objects.equals(targetEmail, current.getSchoolEmail());
+        boolean schoolChanged = schoolProvided && !Objects.equals(dto.getSchoolId(), current.getSchoolId());
+        if (emailChanged || schoolChanged) {
+            patch.setEmailVerified(false);
+        }
+
         // 传了才更新；空串归一化为 null，等价于「清空该项」，不参与信任标签比对
         if (campusProvided && targetCampus != null) {
             patch.setCampus(targetCampus);
@@ -108,6 +116,7 @@ public class UserService {
         var update = Wrappers.<SysUser>lambdaUpdate().eq(SysUser::getId, userId);
         if (emailProvided && targetEmail == null) {
             update.set(SysUser::getSchoolEmail, null);
+            update.set(SysUser::getEmailVerified, false);
         }
         if (campusProvided && targetCampus == null) {
             update.set(SysUser::getCampus, null);
@@ -213,6 +222,7 @@ public class UserService {
         SysUser user = userMapper.selectOne(Wrappers.<SysUser>lambdaQuery()
                 .select(SysUser::getId, SysUser::getNickname, SysUser::getLevel,
                         SysUser::getSchoolId, SysUser::getPhone, SysUser::getSchoolEmail,
+                        SysUser::getEmailVerified,
                         SysUser::getCampus, SysUser::getCollege,
                         SysUser::getGrade, SysUser::getDormitory)
                 .eq(SysUser::getId, userId));
@@ -229,6 +239,7 @@ public class UserService {
                 schoolService.schoolNameOf(user.getSchoolId()),
                 user.getPhone(),
                 user.getSchoolEmail(),
+                user.getEmailVerified(),
                 user.getCampus(),
                 user.getCollege(),
                 user.getGrade(),

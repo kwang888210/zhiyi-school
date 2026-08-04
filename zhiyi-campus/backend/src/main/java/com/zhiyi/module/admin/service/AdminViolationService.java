@@ -147,8 +147,8 @@ public class AdminViolationService {
         report.setHandledAt(LocalDateTime.now());
         violationReportMapper.updateById(report);
 
-        // 2. 评价联动：恢复卖家信誉评分
-        removeReputationPenalty(report.getUserId());
+        // 2. 评价联动：仅恢复当前违规报告关联的评价
+        removeReputationPenalty(report);
 
         // 3. 商品重新上架
         if (report.getItemId() != null) {
@@ -252,17 +252,12 @@ public class AdminViolationService {
     private static final String SYSTEM_DOWNGRADE_MARKER = "[系统：卖家因违规行为信誉降级]";
 
     /**
-     * 确认违规后降低卖家信誉评分（D4 评价联动）
-     *
-     * 1. 优先匹配违规关联商品的 COMPLETED 订单，否则取卖家最近一笔 COMPLETED 订单
-     * 2. 无订单 → 静默返回（被举报用户从未卖出过商品）
-     * 3. 无评价 → 插入系统差评（rating=1, accurate=false）
-     * 4. 有评价且 rating > 1 → 降 2 分（最低 1 分），追加降级标记
+     * 查找当前违规报告关联的 COMPLETED 订单。
+     * 优先匹配违规关联商品的订单，否则取卖家最近一笔 COMPLETED 订单。
+     * 返回 null 表示卖家无已完成订单。
      */
-    private void applyReputationPenalty(ViolationReport report) {
+    private TradeOrder findPenaltyOrder(ViolationReport report) {
         Long sellerId = report.getUserId();
-
-        // 1. 查找卖家的 COMPLETED 订单：优先违规关联商品
         TradeOrder order = null;
         if (report.getItemId() != null) {
             order = tradeOrderMapper.selectOne(new LambdaQueryWrapper<TradeOrder>()
@@ -279,29 +274,44 @@ public class AdminViolationService {
                     .orderByDesc(TradeOrder::getCompletedAt)
                     .last("LIMIT 1"));
         }
-        // 4.1：卖家无已完成订单 → 静默返回
+        return order;
+    }
+
+    /**
+     * 确认违规后降低卖家信誉评分（D4 评价联动）
+     *
+     * 仅针对当前违规报告关联的那一笔订单的评价进行操作：
+     * 1. 优先匹配违规关联商品的 COMPLETED 订单，否则取卖家最近一笔 COMPLETED 订单
+     * 2. 无订单 → 静默返回
+     * 3. 无评价 → 插入系统差评（rating=1, accurate=false）
+     * 4. 有评价且 rating > 1 → 降 2 分（最低 1 分），追加降级标记
+     */
+    private void applyReputationPenalty(ViolationReport report) {
+        Long sellerId = report.getUserId();
+
+        TradeOrder order = findPenaltyOrder(report);
         if (order == null) {
             log.info("卖家 {} 无已完成订单，跳过评价降级", sellerId);
             return;
         }
 
-        // 2. 查该订单是否已有评价
+        // 查该订单是否已有评价
         TradeReview existing = tradeReviewMapper.selectOne(new LambdaQueryWrapper<TradeReview>()
                 .eq(TradeReview::getOrderId, order.getId()));
 
         if (existing == null) {
-            // 4.2：无评价 → 插入系统差评
+            // 无评价 → 插入系统差评
             TradeReview sys = new TradeReview();
             sys.setOrderId(order.getId());
-            sys.setReviewerId(order.getBuyerId()); // 评价者填买家 ID（系统代发）
+            sys.setReviewerId(order.getBuyerId());
             sys.setTargetId(sellerId);
             sys.setRating(1);
             sys.setAccurate(false);
             sys.setComment(SYSTEM_PENALTY_COMMENT);
             tradeReviewMapper.insert(sys);
-            log.info("卖家 {} 无评价，插入系统处罚评价 orderId={}", sellerId, order.getId());
+            log.info("卖家 {} 无评价，插入系统处罚评价 orderId={} reportId={}", sellerId, order.getId(), report.getId());
         } else if (existing.getRating() != null && existing.getRating() > 1) {
-            // 4.3-4.5：有评价且大于 1 分 → 降 2 分
+            // 有评价且大于 1 分 → 降 2 分
             TradeReview patch = new TradeReview();
             patch.setId(existing.getId());
             patch.setRating(Math.max(1, existing.getRating() - 2));
@@ -310,58 +320,72 @@ public class AdminViolationService {
                     + SYSTEM_DOWNGRADE_MARKER;
             patch.setComment(newComment.trim());
             tradeReviewMapper.updateById(patch);
-            log.info("卖家 {} 评价降级：rating {}→{} orderId={}", sellerId,
-                    existing.getRating(), patch.getRating(), order.getId());
+            log.info("卖家 {} 评价降级：rating {}→{} orderId={} reportId={}", sellerId,
+                    existing.getRating(), patch.getRating(), order.getId(), report.getId());
         } else {
-            // 4.5：已有评价且 rating <= 1 → 仅标记 accurate=false
+            // 已有评价且 rating <= 1 → 仅标记 accurate=false
             TradeReview patch = new TradeReview();
             patch.setId(existing.getId());
             patch.setAccurate(false);
             tradeReviewMapper.updateById(patch);
-            log.info("卖家 {} 评价评分已为 {}，仅标记 accurate=false orderId={}", sellerId, existing.getRating(), order.getId());
+            log.info("卖家 {} 评价评分已为 {}，仅标记 accurate=false orderId={} reportId={}",
+                    sellerId, existing.getRating(), order.getId(), report.getId());
         }
     }
 
     /**
      * 驳回违规后恢复卖家信誉评分（D4 评价联动）
      *
-     * 1. 删除所有系统处罚产生的评价（comment = "系统处罚：卖家违规行为"）
-     * 2. 恢复被降级的真实评价：rating + 2（不超过 5），accurate 恢复为 true，移除降级标记
+     * 仅恢复当前违规报告关联的那一笔评价，而非卖家全部被降级评价。
+     * 复用与 applyReputationPenalty 相同的订单查找逻辑定位到同一条评价。
      */
-    private void removeReputationPenalty(Long sellerId) {
-        // 1. 删除系统处罚评价
-        List<TradeReview> systemReviews = tradeReviewMapper.selectList(
-                new LambdaQueryWrapper<TradeReview>()
-                        .eq(TradeReview::getTargetId, sellerId)
-                        .eq(TradeReview::getComment, SYSTEM_PENALTY_COMMENT));
-        if (!systemReviews.isEmpty()) {
-            for (TradeReview r : systemReviews) {
-                tradeReviewMapper.deleteById(r.getId());
-            }
-            log.info("删除了卖家 {} 的 {} 条系统处罚评价", sellerId, systemReviews.size());
+    private void removeReputationPenalty(ViolationReport report) {
+        Long sellerId = report.getUserId();
+
+        TradeOrder order = findPenaltyOrder(report);
+        if (order == null) {
+            log.info("卖家 {} 无已完成订单，跳过评价恢复 reportId={}", sellerId, report.getId());
+            return;
         }
 
-        // 2. 恢复被降级的真实评价（comment 包含降级标记）
-        List<TradeReview> downgraded = tradeReviewMapper.selectList(
-                new LambdaQueryWrapper<TradeReview>()
-                        .eq(TradeReview::getTargetId, sellerId)
-                        .like(TradeReview::getComment, SYSTEM_DOWNGRADE_MARKER));
-        for (TradeReview r : downgraded) {
+        // 查该订单的评价
+        TradeReview review = tradeReviewMapper.selectOne(new LambdaQueryWrapper<TradeReview>()
+                .eq(TradeReview::getOrderId, order.getId()));
+
+        if (review == null) {
+            log.info("卖家 {} 订单 {} 无评价记录，跳过评价恢复 reportId={}",
+                    sellerId, order.getId(), report.getId());
+            return;
+        }
+
+        boolean isSystemReview = SYSTEM_PENALTY_COMMENT.equals(review.getComment());
+        boolean hasDowngradeMarker = review.getComment() != null
+                && review.getComment().contains(SYSTEM_DOWNGRADE_MARKER);
+
+        if (isSystemReview) {
+            // 该评价是本系统插入的处罚评价 → 直接删除
+            tradeReviewMapper.deleteById(review.getId());
+            log.info("删除卖家 {} 的系统处罚评价 orderId={} reportId={}", sellerId, order.getId(), report.getId());
+        } else if (hasDowngradeMarker) {
+            // 该评价被降级过 → 恢复评分 +2（不超过 5），移除降级标记
             TradeReview patch = new TradeReview();
-            patch.setId(r.getId());
-            // 恢复评分：+2，不超过 5
-            patch.setRating(Math.min(5, (r.getRating() == null ? 3 : r.getRating()) + 2));
+            patch.setId(review.getId());
+            patch.setRating(Math.min(5, (review.getRating() == null ? 3 : review.getRating()) + 2));
             patch.setAccurate(true);
-            // 移除降级标记
-            String cleaned = r.getComment() == null ? ""
-                    : r.getComment().replace(SYSTEM_DOWNGRADE_MARKER, "").trim();
+            String cleaned = review.getComment() == null ? ""
+                    : review.getComment().replace(SYSTEM_DOWNGRADE_MARKER, "").trim();
             patch.setComment(cleaned.isEmpty() ? null : cleaned);
             tradeReviewMapper.updateById(patch);
-            log.info("卖家 {} 评价恢复：rating {}→{} orderId={}", sellerId, r.getRating(), patch.getRating(), r.getOrderId());
-        }
-
-        if (systemReviews.isEmpty() && downgraded.isEmpty()) {
-            log.info("卖家 {} 无系统处罚评价可恢复", sellerId);
+            log.info("卖家 {} 评价恢复：rating {}→{} orderId={} reportId={}",
+                    sellerId, review.getRating(), patch.getRating(), order.getId(), report.getId());
+        } else {
+            // 该评价虽是真实评价但没有降级标记（可能因 rating 已 ≤1 只改了 accurate）
+            // 恢复 accurate 为 true
+            TradeReview patch = new TradeReview();
+            patch.setId(review.getId());
+            patch.setAccurate(true);
+            tradeReviewMapper.updateById(patch);
+            log.info("卖家 {} 评价 accurate 恢复 orderId={} reportId={}", sellerId, order.getId(), report.getId());
         }
     }
 }

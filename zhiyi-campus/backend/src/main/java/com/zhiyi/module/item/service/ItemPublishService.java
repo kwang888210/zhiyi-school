@@ -170,7 +170,7 @@ public class ItemPublishService {
         item.setImages(toJson(dto.getImages()));
         item.setAiTags(toJson(review.tags()));
         item.setAiReviewed(!review.reviewError());
-        item.setTradeLocation(dto.getTradeLocation().trim());
+        item.setTradeLocation(trimToNull(dto.getTradeLocation()));
         item.setPickupLocation(trimToNull(dto.getPickupLocation()));
         item.setDeliveryLocation(trimToNull(dto.getDeliveryLocation()));
         item.setDeadlineTime(dto.getDeadlineTime());
@@ -199,6 +199,11 @@ public class ItemPublishService {
         }
         if (!"OFF_SHELF".equals(item.getStatus())) {
             throw new BusinessException(ResultCode.BAD_REQUEST, "只有已下架商品可以重新上架");
+        }
+        // ERRAND 类型：截止时间已过的跑腿单不允许重新上架
+        if ("ERRAND".equals(item.getType()) && item.getDeadlineTime() != null
+                && !item.getDeadlineTime().isAfter(LocalDateTime.now())) {
+            throw new BusinessException(ResultCode.BAD_REQUEST, "已过截止时间的跑腿单无法重新上架，请重新发布");
         }
         if (hasPendingViolation(itemId)) {
             throw new BusinessException(ResultCode.AI_VIOLATION, "该商品存在待处理违规记录，请修改内容后重试或等待管理员复核");
@@ -243,7 +248,7 @@ public class ItemPublishService {
         item.setPrice(normalizePrice(dto));
         item.setImages(toJson(dto.getImages()));
         item.setAiTags(toJson(review.tags()));
-        item.setTradeLocation(dto.getTradeLocation().trim());
+        item.setTradeLocation(trimToNull(dto.getTradeLocation()));
         item.setPickupLocation(trimToNull(dto.getPickupLocation()));
         item.setDeliveryLocation(trimToNull(dto.getDeliveryLocation()));
         item.setDeadlineTime(dto.getDeadlineTime());

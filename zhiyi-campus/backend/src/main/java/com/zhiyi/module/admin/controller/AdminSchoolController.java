@@ -28,8 +28,8 @@ public class AdminSchoolController {
     private final AdminSchoolService schoolService;
 
     @GetMapping("/schools")
-    public Result<List<SchoolVO>> list() {
-        return Result.ok(schoolService.listAll());
+    public Result<List<SchoolVO>> list(@RequestParam(required = false) String status) {
+        return Result.ok(schoolService.listAll(status));
     }
 
     @PostMapping("/schools")

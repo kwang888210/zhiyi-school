@@ -19,6 +19,7 @@ public class SellerDetailVO {
     private String schoolName;
     private String phone;
     private String schoolEmail;
+    private Boolean emailVerified;
     private String campus;
     private String college;
     private String grade;
