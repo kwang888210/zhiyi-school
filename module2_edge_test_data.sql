@@ -53,83 +53,83 @@ UPDATE sys_user SET password='$2a$10$or0s3jeC85J07b8HcY9wfOJDE0gegLcyYkjFLn0yr.B
 -- 1. 用户（全部密码 123456，密保答案 answer_用户名）
 -- ============================================================
 
--- 1.1 资深卖家小王(上大·计算机·南区3号楼·已认证)
-INSERT INTO sys_user (id, student_id, password, nickname, phone, school_id, school_email, email_verified, campus, college, grade, dormitory, role, status, level, exp, wallet_balance, security_question, security_answer)
+-- 1.1 资深卖家小王(上大·计算机·南区3号楼·学校邮箱后缀合规)
+INSERT INTO sys_user (id, student_id, password, nickname, phone, school_id, school_email, campus, college, grade, dormitory, role, status, level, exp, wallet_balance, security_question, security_answer)
 VALUES (2, '2024001', '$2a$10$or0s3jeC85J07b8HcY9wfOJDE0gegLcyYkjFLn0yr.BE8koej.A1K',
     '资深卖家小王', '13800001001',
-    (SELECT id FROM school WHERE code='SHU'), 'wang@shu.edu.cn', 1,
+    (SELECT id FROM school WHERE code='SHU'), 'wang@shu.edu.cn',
     '宝山校区', '计算机学院', '2024级', '南区3号楼',
     'USER', 'ACTIVE', 5, 420, 500.00,
     '你的小学校名？', '$2a$10$or0s3jeC85J07b8HcY9wfOJDE0gegLcyYkjFLn0yr.BE8koej.A1K');
 
 -- 1.2 买家小李(上大·同学院同级同楼——信任标签匹配)
-INSERT INTO sys_user (id, student_id, password, nickname, phone, school_id, school_email, email_verified, campus, college, grade, dormitory, role, status, level, exp, wallet_balance, security_question, security_answer)
+INSERT INTO sys_user (id, student_id, password, nickname, phone, school_id, school_email, campus, college, grade, dormitory, role, status, level, exp, wallet_balance, security_question, security_answer)
 VALUES (3, '2024002', '$2a$10$or0s3jeC85J07b8HcY9wfOJDE0gegLcyYkjFLn0yr.BE8koej.A1K',
     '买家小李', '13800001002',
-    (SELECT id FROM school WHERE code='SHU'), 'li@shu.edu.cn', 1,
+    (SELECT id FROM school WHERE code='SHU'), 'li@shu.edu.cn',
     '宝山校区', '计算机学院', '2024级', '南区3号楼',
     'USER', 'ACTIVE', 3, 180, 2000.00,
     '你的小学校名？', '$2a$10$or0s3jeC85J07b8HcY9wfOJDE0gegLcyYkjFLn0yr.BE8koej.A1K');
 
 -- 1.3 毕业学姐(上大·外语学院·南区5号楼)
-INSERT INTO sys_user (id, student_id, password, nickname, phone, school_id, school_email, email_verified, campus, college, grade, dormitory, role, status, level, exp, wallet_balance, security_question, security_answer)
+INSERT INTO sys_user (id, student_id, password, nickname, phone, school_id, school_email, campus, college, grade, dormitory, role, status, level, exp, wallet_balance, security_question, security_answer)
 VALUES (4, '2024003', '$2a$10$or0s3jeC85J07b8HcY9wfOJDE0gegLcyYkjFLn0yr.BE8koej.A1K',
     '毕业清仓学姐', '13800001003',
-    (SELECT id FROM school WHERE code='SHU'), NULL, 0,
+    (SELECT id FROM school WHERE code='SHU'), NULL,
     '宝山校区', '外语学院', '2023级', '南区5号楼',
     'USER', 'ACTIVE', 8, 850, 100.50,
     '你的小学校名？', '$2a$10$or0s3jeC85J07b8HcY9wfOJDE0gegLcyYkjFLn0yr.BE8koej.A1K');
 
 -- 1.4 东华新生(东华·纺织学院)
-INSERT INTO sys_user (id, student_id, password, nickname, phone, school_id, school_email, email_verified, campus, college, grade, dormitory, role, status, level, exp, wallet_balance, security_question, security_answer)
+INSERT INTO sys_user (id, student_id, password, nickname, phone, school_id, school_email, campus, college, grade, dormitory, role, status, level, exp, wallet_balance, security_question, security_answer)
 VALUES (5, '2024004', '$2a$10$or0s3jeC85J07b8HcY9wfOJDE0gegLcyYkjFLn0yr.BE8koej.A1K',
     '新生小张', '13800001004',
-    (SELECT id FROM school WHERE code='DHU'), NULL, 0,
+    (SELECT id FROM school WHERE code='DHU'), NULL,
     '松江校区', '纺织学院', '2025级', NULL,
     'USER', 'ACTIVE', 2, 80, 50.00,
     '你的小学校名？', '$2a$10$or0s3jeC85J07b8HcY9wfOJDE0gegLcyYkjFLn0yr.BE8koej.A1K');
 
 -- 1.5 临时封禁
-INSERT INTO sys_user (id, student_id, password, nickname, phone, school_id, school_email, email_verified, campus, college, grade, dormitory, role, status, level, exp, wallet_balance, ban_until_time, token_version, security_question, security_answer)
+INSERT INTO sys_user (id, student_id, password, nickname, phone, school_id, school_email, campus, college, grade, dormitory, role, status, level, exp, wallet_balance, ban_until_time, token_version, security_question, security_answer)
 VALUES (6, '2024005', '$2a$10$or0s3jeC85J07b8HcY9wfOJDE0gegLcyYkjFLn0yr.BE8koej.A1K',
     '违规用户A', '13800001005',
-    (SELECT id FROM school WHERE code='SHU'), NULL, 0,
+    (SELECT id FROM school WHERE code='SHU'), NULL,
     NULL, NULL, NULL, NULL,
     'USER', 'BANNED_TEMP', 2, 30, 25.00, DATE_ADD(NOW(), INTERVAL 30 DAY), 1,
     '你的小学校名？', '$2a$10$or0s3jeC85J07b8HcY9wfOJDE0gegLcyYkjFLn0yr.BE8koej.A1K');
 
 -- 1.6 永久封禁
-INSERT INTO sys_user (id, student_id, password, nickname, phone, school_id, school_email, email_verified, campus, college, grade, dormitory, role, status, level, exp, wallet_balance, token_version, security_question, security_answer)
+INSERT INTO sys_user (id, student_id, password, nickname, phone, school_id, school_email, campus, college, grade, dormitory, role, status, level, exp, wallet_balance, token_version, security_question, security_answer)
 VALUES (7, '2024006', '$2a$10$or0s3jeC85J07b8HcY9wfOJDE0gegLcyYkjFLn0yr.BE8koej.A1K',
     '永久封禁B', '13800001006',
-    (SELECT id FROM school WHERE code='SHU'), NULL, 0,
+    (SELECT id FROM school WHERE code='SHU'), NULL,
     NULL, NULL, NULL, NULL,
     'USER', 'BANNED_PERM', 1, 0, 0.00, 10,
     '你的小学校名？', '$2a$10$or0s3jeC85J07b8HcY9wfOJDE0gegLcyYkjFLn0yr.BE8koej.A1K');
 
 -- 1.7 已注销
-INSERT INTO sys_user (id, student_id, password, nickname, phone, school_id, school_email, email_verified, campus, college, grade, dormitory, role, status, level, exp, wallet_balance, token_version, security_question, security_answer)
+INSERT INTO sys_user (id, student_id, password, nickname, phone, school_id, school_email, campus, college, grade, dormitory, role, status, level, exp, wallet_balance, token_version, security_question, security_answer)
 VALUES (8, '2024007', '$2a$10$or0s3jeC85J07b8HcY9wfOJDE0gegLcyYkjFLn0yr.BE8koej.A1K',
     '已注销用户C', '13800001007',
-    (SELECT id FROM school WHERE code='SHU'), NULL, 0,
+    (SELECT id FROM school WHERE code='SHU'), NULL,
     NULL, NULL, NULL, NULL,
     'USER', 'CANCELLED', 1, 50, 10.00, 5,
     '你的小学校名？', '$2a$10$or0s3jeC85J07b8HcY9wfOJDE0gegLcyYkjFLn0yr.BE8koej.A1K');
 
 -- 1.8 边缘(零余额零经验)
-INSERT INTO sys_user (id, student_id, password, nickname, phone, school_id, school_email, email_verified, campus, college, grade, dormitory, role, status, level, exp, wallet_balance, security_question, security_answer)
+INSERT INTO sys_user (id, student_id, password, nickname, phone, school_id, school_email, campus, college, grade, dormitory, role, status, level, exp, wallet_balance, security_question, security_answer)
 VALUES (9, '2024008', '$2a$10$or0s3jeC85J07b8HcY9wfOJDE0gegLcyYkjFLn0yr.BE8koej.A1K',
     '边缘用户零钱', '13800001008',
-    (SELECT id FROM school WHERE code='SHU'), NULL, 0,
+    (SELECT id FROM school WHERE code='SHU'), NULL,
     NULL, NULL, NULL, NULL,
     'USER', 'ACTIVE', 1, 0, 0.00,
     '你的小学校名？', '$2a$10$or0s3jeC85J07b8HcY9wfOJDE0gegLcyYkjFLn0yr.BE8koej.A1K');
 
 -- 1.9 高等级大佬(东华·材料学院)
-INSERT INTO sys_user (id, student_id, password, nickname, phone, school_id, school_email, email_verified, campus, college, grade, dormitory, role, status, level, exp, wallet_balance, security_question, security_answer)
+INSERT INTO sys_user (id, student_id, password, nickname, phone, school_id, school_email, campus, college, grade, dormitory, role, status, level, exp, wallet_balance, security_question, security_answer)
 VALUES (10, '2024009', '$2a$10$or0s3jeC85J07b8HcY9wfOJDE0gegLcyYkjFLn0yr.BE8koej.A1K',
     '大佬陈哥', '13800001009',
-    (SELECT id FROM school WHERE code='DHU'), 'chen@dhu.edu.cn', 1,
+    (SELECT id FROM school WHERE code='DHU'), 'chen@dhu.edu.cn',
     '松江校区', '材料学院', '2024级', '松江校区1号楼',
     'USER', 'ACTIVE', 15, 12000, 5000.00,
     '你的小学校名？', '$2a$10$or0s3jeC85J07b8HcY9wfOJDE0gegLcyYkjFLn0yr.BE8koej.A1K');

@@ -33,7 +33,6 @@ public class UserVO {
     /** 学校名称（由 Service 关联 school 表填充；仅 schoolId 已知时可为 null） */
     private String schoolName;
     private String schoolEmail;
-    private Boolean emailVerified;
     private String campus;
     private String college;
     private String grade;
@@ -63,7 +62,6 @@ public class UserVO {
         vo.setSchoolId(u.getSchoolId());
         vo.setSchoolName(schoolName);
         vo.setSchoolEmail(u.getSchoolEmail());
-        vo.setEmailVerified(u.getEmailVerified());
         vo.setCampus(u.getCampus());
         vo.setCollege(u.getCollege());
         vo.setGrade(u.getGrade());

@@ -51,7 +51,6 @@ CREATE TABLE sys_user (
     phone           VARCHAR(20)     DEFAULT NULL             COMMENT '手机号',
     school_id       BIGINT          NOT NULL                 COMMENT '所属学校ID（普通功能按学校隔离；管理员默认上海大学）',
     school_email    VARCHAR(100)    DEFAULT NULL             COMMENT '学校邮箱（可选，后缀须与所属学校匹配）',
-    email_verified  TINYINT(1)      NOT NULL DEFAULT 0       COMMENT '学校邮箱是否已验证',
     campus          VARCHAR(50)     DEFAULT NULL             COMMENT '校区（个人中心自愿补全，智能推荐与信任标签使用）',
     college         VARCHAR(50)     DEFAULT NULL             COMMENT '学院（个人中心自愿补全，信任标签用）',
     grade           VARCHAR(10)     DEFAULT NULL             COMMENT '年级（个人中心自愿补全，信任标签用）',

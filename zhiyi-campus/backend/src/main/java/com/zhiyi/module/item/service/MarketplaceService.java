@@ -555,7 +555,7 @@ public class MarketplaceService {
                 vo.setPublisherNickname(publisher.getNickname());
                 vo.setPublisherLevel(publisher.getLevel());
                 vo.setPublisherLevelTitle(LevelRule.titleOf(publisher.getLevel()));
-                vo.setPublisherVerified(Boolean.TRUE.equals(publisher.getEmailVerified()));
+                vo.setPublisherVerified(StringUtils.hasText(publisher.getSchoolEmail()));
                 vo.setDormitoryRelation(proximityRelation(viewer, publisher));
             }
             vo.setType(item.getType());

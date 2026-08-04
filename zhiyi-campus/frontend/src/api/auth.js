@@ -28,15 +28,6 @@ export function resetPassword(data) {
   return request.post('/auth/reset-password', data)
 }
 
-// —— 邮箱验证（A3） ——
-export function sendVerifyCode(email) {
-  return request.post('/auth/send-verify-code', null, { params: { email } })
-}
-
-export function verifyEmail(email, code) {
-  return request.post('/auth/verify-email', null, { params: { email, code } })
-}
-
 // —— 用户信息 & 成长体系 ——
 export function getProfile() {
   return request.get('/user/profile')
