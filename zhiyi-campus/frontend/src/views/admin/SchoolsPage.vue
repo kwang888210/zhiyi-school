@@ -32,14 +32,22 @@
               <span class="school-row__name">{{ s.name }}</span>
               <span class="school-row__code badge badge--ink">{{ s.code }}</span>
               <span class="school-row__domain muted">{{ s.emailDomain || '未配置邮箱域名' }}</span>
-              <span
-                class="badge"
-                :class="s.status === 'ACTIVE' ? 'badge--ok' : 'badge--muted'"
-              >
-                {{ s.status === 'ACTIVE' ? '启用' : '停用' }}
+              <span class="badge" :class="schoolStatusClass(s.status)">
+                {{ schoolStatusLabel(s.status) }}
               </span>
             </div>
-            <button class="btn btn--sm" @click="startEdit(s)">✏️ 编辑</button>
+            <div class="school-row__actions">
+              <button v-if="s.status !== 'DELETED'" class="btn btn--sm" @click="startEdit(s)">✏️ 编辑</button>
+              <button
+                v-if="s.status !== 'DELETED'"
+                class="btn btn--sm btn--danger"
+                :aria-label="`删除学校${s.name}`"
+                :disabled="deletingId === s.id"
+                @click="handleDelete(s)"
+              >
+                {{ deletingId === s.id ? '删除中...' : '删除' }}
+              </button>
+            </div>
           </div>
         </div>
         <div v-else class="card card--flat state-card">
@@ -132,13 +140,14 @@
 
 <script setup>
 import { ref, reactive, onMounted } from 'vue'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import DefaultLayout from '@/components/layout/DefaultLayout.vue'
-import { getSchools, createSchool, updateSchool } from '@/api/admin'
+import { getSchools, createSchool, updateSchool, deleteSchool } from '@/api/admin'
 
 const schools = ref([])
 const loading = ref(false)
 const editingId = ref(null)
+const deletingId = ref(null)
 
 const dialog = reactive({
   visible: false,
@@ -189,6 +198,16 @@ function closeDialog() {
   editingId.value = null
 }
 
+function schoolStatusLabel(status) {
+  return { ACTIVE: '启用', DISABLED: '停用', DELETED: '已删除' }[status] || status
+}
+
+function schoolStatusClass(status) {
+  if (status === 'ACTIVE') return 'badge--ok'
+  if (status === 'DELETED') return 'badge--danger'
+  return 'badge--muted'
+}
+
 async function handleSave() {
   const { id, name, code, emailDomain, status } = dialog.form
   if (!name.trim()) { ElMessage.warning('请输入学校名称'); return }
@@ -215,6 +234,29 @@ async function handleSave() {
     ElMessage.error(e.response?.data?.message || '操作失败')
   } finally {
     dialog.submitting = false
+  }
+}
+
+async function handleDelete(school) {
+  try {
+    await ElMessageBox.confirm(
+      `确认删除学校“${school.name}”？仅无用户和商品关联的学校可以删除。`,
+      '删除学校',
+      { type: 'warning', confirmButtonText: '确认删除', cancelButtonText: '取消' },
+    )
+  } catch {
+    return
+  }
+
+  deletingId.value = school.id
+  try {
+    await deleteSchool(school.id)
+    ElMessage.success('学校已删除')
+    await fetchSchools()
+  } catch {
+    // 具体依赖约束错误由统一请求拦截器提示。
+  } finally {
+    deletingId.value = null
   }
 }
 
@@ -252,6 +294,7 @@ onMounted(fetchSchools)
   display: flex; align-items: center; justify-content: space-between;
   padding: 14px 20px; gap: 12px;
 }
+.school-row__actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .school-row.active {
   border-color: var(--primary);
   box-shadow: 2px 2px 0 var(--primary);
