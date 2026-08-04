@@ -167,8 +167,8 @@
           <p class="tool-card__desc muted">配置专题生效时段、商品筛选规则和首页 Banner 文案。</p>
           <div class="field"><label>专题名称</label><input v-model.trim="topicForm.title" class="input" maxlength="100" placeholder="如：毕业季闲置循环"></div>
           <div class="form-pair">
-            <div class="field"><label>开始时间</label><input v-model="topicForm.startTime" class="input" type="datetime-local"></div>
-            <div class="field"><label>结束时间</label><input v-model="topicForm.endTime" class="input" type="datetime-local"></div>
+            <div class="field"><label>开始时间</label><AppDateTimePicker v-model="topicForm.startTime" placeholder="选择专题开始时间" aria-label="专题开始时间" /></div>
+            <div class="field"><label>结束时间</label><AppDateTimePicker v-model="topicForm.endTime" :min="topicForm.startTime" placeholder="选择专题结束时间" aria-label="专题结束时间" /></div>
           </div>
           <div class="form-pair">
             <div class="field"><label>商品类型</label><AppSelect v-model="topicForm.filterType" :options="TOPIC_TYPE_OPTIONS" placeholder="全部类型" /></div>
@@ -234,6 +234,7 @@
 <script setup>
 import { computed, onMounted, reactive, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
+import AppDateTimePicker from '@/components/common/AppDateTimePicker.vue'
 import AppSelect from '@/components/common/AppSelect.vue'
 import DefaultLayout from '@/components/layout/DefaultLayout.vue'
 import { createEventTopic, deleteEventTopic, forceOffShelf, getEventTopics, resetUserPassword, searchUsers, searchAdminItems, getItemLineage, updateEventTopic } from '@/api/admin'

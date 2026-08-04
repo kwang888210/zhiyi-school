@@ -54,9 +54,10 @@
           <span class="muted">暂无学校数据</span>
         </div>
 
-        <!-- 编辑弹窗 -->
-        <div v-if="dialog.visible" class="modal-overlay" @click.self="closeDialog">
-          <div class="modal-card card">
+        <!-- 编辑弹窗传送到 body，避免 rise 动画形成的局部层叠上下文盖住浮层。 -->
+        <Teleport to="body">
+          <div v-if="dialog.visible" class="modal-overlay" @click.self="closeDialog">
+            <div class="modal-card card" role="dialog" aria-modal="true" :aria-label="dialog.isCreate ? '新增学校' : '编辑学校'">
             <h3 class="modal-title">{{ dialog.isCreate ? '🏫 新增学校' : '✏️ 编辑学校' }}</h3>
 
             <div class="field">
@@ -114,18 +115,19 @@
               </div>
             </div>
 
-            <div class="modal-actions">
-              <button class="btn" @click="closeDialog">取消</button>
-              <button
-                class="btn btn--primary"
-                :disabled="dialog.submitting"
-                @click="handleSave"
-              >
-                {{ dialog.submitting ? '保存中...' : (dialog.isCreate ? '创建' : '保存') }}
-              </button>
+              <div class="modal-actions">
+                <button class="btn" @click="closeDialog">取消</button>
+                <button
+                  class="btn btn--primary"
+                  :disabled="dialog.submitting"
+                  @click="handleSave"
+                >
+                  {{ dialog.submitting ? '保存中...' : (dialog.isCreate ? '创建' : '保存') }}
+                </button>
+              </div>
             </div>
           </div>
-        </div>
+        </Teleport>
 
         <!-- 新增按钮 -->
         <div class="add-bar">
@@ -313,11 +315,13 @@ onMounted(fetchSchools)
 /* 弹窗 */
 .modal-overlay {
   position: fixed; inset: 0; z-index: var(--z-modal);
-  background: rgba(38,34,28,.45);
-  display: grid; place-items: center; padding: 20px;
+  background: rgba(38,34,28,.58);
+  backdrop-filter: blur(3px);
+  display: grid; place-items: center; padding: 24px;
+  overflow-y: auto;
 }
 .modal-card {
-  width: 100%; max-width: 480px; max-height: 90vh; overflow-y: auto;
+  width: 100%; max-width: 480px; max-height: calc(100vh - 48px); overflow-y: auto;
   padding: 28px;
 }
 .modal-title {

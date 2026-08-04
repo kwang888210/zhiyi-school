@@ -103,7 +103,13 @@
 
           <el-form-item prop="deadlineTime" class="field">
             <label for="deadline-time">{{ form.type === 'ERRAND' ? '跑腿截止时间' : '期望出手截止时间' }} <span v-if="form.type === 'ERRAND'" class="req">*</span></label>
-            <input id="deadline-time" v-model="form.deadlineTime" class="input" type="datetime-local" :min="minimumDeadline">
+            <AppDateTimePicker
+              id="deadline-time"
+              v-model="form.deadlineTime"
+              :min="minimumDeadline"
+              :placeholder="form.type === 'ERRAND' ? '选择跑腿截止日期与时间' : '选择期望出手日期与时间'"
+              aria-label="截止日期与时间"
+            />
             <p class="hint">{{ form.type === 'ERRAND' ? '跑腿任务必须填写未来的截止时间' : '可选；临近截止时商品卡片会显示倒计时提醒' }}</p>
           </el-form-item>
 
@@ -143,6 +149,7 @@
 import { computed, nextTick, onMounted, reactive, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
+import AppDateTimePicker from '@/components/common/AppDateTimePicker.vue'
 import AppSelect from '@/components/common/AppSelect.vue'
 import DefaultLayout from '@/components/layout/DefaultLayout.vue'
 import { getCategories, getOwnItem, publishItem, updateItem, uploadItemImage } from '@/api/item'
