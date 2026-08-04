@@ -234,5 +234,33 @@ class AdminServiceTest {
             assertEquals("OFF_SHELF", vo.getItemStatus());
             assertEquals(100L, vo.getItemId());
         }
+
+        @Test
+        void shouldDismissPendingViolationWithoutChangingTradeReviews() {
+            ViolationReport report = new ViolationReport();
+            report.setId(1L);
+            report.setUserId(10L);
+            report.setStatus("PENDING");
+            report.setItemId(100L);
+
+            Item item = new Item();
+            item.setId(100L);
+            item.setStatus("OFF_SHELF");
+            item.setAiReviewed(false);
+
+            when(violationReportMapper.selectById(1L)).thenReturn(report);
+            when(itemMapper.selectById(100L)).thenReturn(item);
+
+            service.dismissViolation(1L, 99L);
+
+            assertEquals("DISMISSED", report.getStatus());
+            assertEquals(99L, report.getHandlerId());
+            assertNotNull(report.getHandledAt());
+            assertEquals("ON_SALE", item.getStatus());
+            assertEquals(Boolean.TRUE, item.getAiReviewed());
+            verify(violationReportMapper).updateById(report);
+            verify(itemMapper).updateById(item);
+            verifyNoInteractions(tradeOrderMapper, tradeReviewMapper);
+        }
     }
 }
