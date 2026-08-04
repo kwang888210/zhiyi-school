@@ -4,6 +4,7 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.zhiyi.common.BusinessException;
+import com.zhiyi.module.admin.dto.ConfirmViolationDTO;
 import com.zhiyi.module.admin.entity.ViolationLog;
 import com.zhiyi.module.admin.entity.ViolationReport;
 import com.zhiyi.module.admin.mapper.ViolationLogMapper;
@@ -11,11 +12,10 @@ import com.zhiyi.module.admin.mapper.ViolationReportMapper;
 import com.zhiyi.module.admin.vo.ViolationVO;
 import com.zhiyi.module.item.entity.Item;
 import com.zhiyi.module.item.mapper.ItemMapper;
-import com.zhiyi.module.trade.mapper.TradeOrderMapper;
-import com.zhiyi.module.trade.mapper.TradeReviewMapper;
 import com.zhiyi.module.user.entity.SysUser;
 import com.zhiyi.module.user.mapper.SysUserMapper;
 import com.zhiyi.module.user.service.BanService;
+import com.zhiyi.module.user.service.ReputationPenaltyService;
 import com.zhiyi.module.user.service.UserGrowthService;
 import com.zhiyi.module.user.support.UserStateCache;
 import org.junit.jupiter.api.BeforeEach;
@@ -173,8 +173,7 @@ class AdminServiceTest {
         @Mock private ItemMapper itemMapper;
         @Mock private BanService banService;
         @Mock private ViolationLogMapper violationLogMapper;
-        @Mock private TradeOrderMapper tradeOrderMapper;
-        @Mock private TradeReviewMapper tradeReviewMapper;
+        @Mock private ReputationPenaltyService reputationPenaltyService;
 
         private AdminViolationService service;
 
@@ -182,7 +181,7 @@ class AdminServiceTest {
         void setUp() {
             service = new AdminViolationService(
                     violationReportMapper, sysUserMapper, itemMapper, banService, violationLogMapper,
-                    tradeOrderMapper, tradeReviewMapper);
+                    reputationPenaltyService);
         }
 
         @Test
@@ -260,7 +259,33 @@ class AdminServiceTest {
             assertEquals(Boolean.TRUE, item.getAiReviewed());
             verify(violationReportMapper).updateById(report);
             verify(itemMapper).updateById(item);
-            verifyNoInteractions(tradeOrderMapper, tradeReviewMapper);
+            verifyNoInteractions(reputationPenaltyService);
+        }
+
+        @Test
+        void shouldConfirmViolationWithIndependentReputationPenalty() {
+            ViolationReport report = new ViolationReport();
+            report.setId(1L);
+            report.setUserId(10L);
+            report.setStatus("PENDING");
+            when(violationReportMapper.selectById(1L)).thenReturn(report);
+
+            ConfirmViolationDTO dto = new ConfirmViolationDTO();
+            dto.setType("BAN_TEMP");
+            dto.setReason("重复发布违规内容");
+            dto.setBanDays(7);
+            dto.setHandleNote("人工复核确认");
+
+            service.confirmViolation(1L, dto, 99L);
+
+            assertEquals("CONFIRMED", report.getStatus());
+            assertEquals(99L, report.getHandlerId());
+            verify(banService).punish(argThat(punishment ->
+                    punishment.getUserId().equals(10L)
+                            && "BAN_TEMP".equals(punishment.getType())
+                            && punishment.getBanDays().equals(7)), eq(99L));
+            verify(reputationPenaltyService).recordPenalty(
+                    1L, 10L, 99L, "BAN_TEMP", "重复发布违规内容");
         }
     }
 }

@@ -52,7 +52,7 @@ public class AdminViolationController {
     }
 
     /**
-     * 用户处罚评分统计（D4：评价联动）
+     * 用户处罚评分统计（D4：独立信誉处罚）
      */
     @GetMapping("/penalty-stats")
     public Result<PenaltyStatsVO> penaltyStats(@RequestParam Long userId) {

@@ -57,7 +57,7 @@ import {
 } from '@/utils/reputation.js'
 
 /**
- * 信誉雷达图（A6）—— 纯 SVG 手绘风，不引入图表库，几何逻辑复用 utils/reputation.js
+ * 信誉雷达图（A6）—— 六维纯 SVG 手绘风，不引入图表库，几何逻辑复用 utils/reputation.js
  */
 const props = defineProps({
   reputation: { type: Object, default: () => ({}) },
@@ -85,7 +85,7 @@ const gradeClass = computed(() => {
 const rings = computed(() =>
   [100, 75, 50, 25].map((k) => ({
     k,
-    points: radarPolygon([k, k, k, k, k], geom.value),
+    points: radarPolygon(REPUTATION_DIMENSIONS.map(() => k), geom.value),
   }))
 )
 

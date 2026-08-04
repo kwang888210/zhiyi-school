@@ -47,6 +47,25 @@ PREPARE add_idx_type_deadline_stmt FROM @add_idx_type_deadline_sql;
 EXECUTE add_idx_type_deadline_stmt;
 DEALLOCATE PREPARE add_idx_type_deadline_stmt;
 
+CREATE TABLE IF NOT EXISTS reputation_penalty (
+    id BIGINT NOT NULL AUTO_INCREMENT,
+    report_id BIGINT NOT NULL,
+    user_id BIGINT NOT NULL,
+    admin_id BIGINT NOT NULL,
+    type VARCHAR(20) NOT NULL,
+    points INT NOT NULL,
+    reason VARCHAR(500) NOT NULL,
+    status VARCHAR(20) NOT NULL DEFAULT 'ACTIVE',
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    revoked_at DATETIME NULL,
+    PRIMARY KEY (id),
+    UNIQUE KEY uk_reputation_penalty_report (report_id),
+    INDEX idx_reputation_penalty_user_status (user_id, status),
+    CONSTRAINT fk_rp_report FOREIGN KEY (report_id) REFERENCES violation_report(id),
+    CONSTRAINT fk_rp_user FOREIGN KEY (user_id) REFERENCES sys_user(id),
+    CONSTRAINT fk_rp_admin FOREIGN KEY (admin_id) REFERENCES sys_user(id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='独立信誉处罚记录表';
+
 CREATE TABLE IF NOT EXISTS event_topic (
     id BIGINT NOT NULL AUTO_INCREMENT,
     title VARCHAR(100) NOT NULL,

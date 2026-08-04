@@ -21,12 +21,13 @@ import java.time.LocalDateTime;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * ReputationService 单元测试（A6）—— 校验五维聚合的取值范围与边界。
+ * ReputationService 单元测试（A6）—— 校验六维聚合的取值范围与边界。
  */
 @ExtendWith(MockitoExtension.class)
 class ReputationServiceTest {
@@ -36,6 +37,7 @@ class ReputationServiceTest {
     @Mock private ChatMessageMapper chatMapper;
     @Mock private ItemMapper itemMapper;
     @Mock private SysUserMapper userMapper;
+    @Mock private ReputationPenaltyService penaltyService;
 
     private ReputationService reputationService;
 
@@ -44,7 +46,8 @@ class ReputationServiceTest {
     @BeforeEach
     void setUp() {
         reputationService = new ReputationService(
-                orderMapper, reviewMapper, chatMapper, itemMapper, userMapper);
+                orderMapper, reviewMapper, chatMapper, itemMapper, userMapper, penaltyService);
+        lenient().when(penaltyService.complianceScore(USER_ID)).thenReturn(100);
     }
 
     @Test
@@ -64,6 +67,7 @@ class ReputationServiceTest {
         assertEquals(60, vo.getAccuracy());
         assertEquals(60, vo.getPraise());
         assertEquals(0, vo.getActivity());
+        assertEquals(100, vo.getCompliance());
         assertEquals(0, vo.getReviewCount());
         assertScoresInRange(vo);
     }
@@ -97,6 +101,24 @@ class ReputationServiceTest {
         assertEquals(25, vo.getAccuracy());
         // 平均分 (5+1+3+2)/4 = 2.75 星 => 2.75/5*100 = 55
         assertEquals(55, vo.getPraise());
+        assertScoresInRange(vo);
+    }
+
+    @Test
+    void activePenaltiesOnlyLowerComplianceDimension() {
+        when(userMapper.selectById(USER_ID)).thenReturn(new SysUser());
+        when(orderMapper.selectCount(any())).thenReturn(0L);
+        when(itemMapper.selectCount(any())).thenReturn(0L);
+        when(chatMapper.selectList(any())).thenReturn(java.util.List.of());
+        when(reviewMapper.selectList(any())).thenReturn(java.util.List.of(
+                review(5, true), review(4, true)));
+        when(penaltyService.complianceScore(USER_ID)).thenReturn(45);
+
+        ReputationVO vo = reputationService.compute(USER_ID);
+
+        assertEquals(100, vo.getAccuracy());
+        assertEquals(90, vo.getPraise());
+        assertEquals(45, vo.getCompliance());
         assertScoresInRange(vo);
     }
 
@@ -158,7 +180,7 @@ class ReputationServiceTest {
 
     private void assertScoresInRange(ReputationVO vo) {
         for (int score : new int[]{vo.getCompletionRate(), vo.getResponseSpeed(),
-                vo.getAccuracy(), vo.getPraise(), vo.getActivity()}) {
+                vo.getAccuracy(), vo.getPraise(), vo.getActivity(), vo.getCompliance()}) {
             assertTrue(score >= 0 && score <= 100,
                     "维度分值应落在 0-100，实际为 " + score);
         }

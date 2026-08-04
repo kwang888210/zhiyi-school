@@ -18,22 +18,22 @@ const approx = (a, b, eps = 1e-6) =>
 // 维度定义
 // ================================================================
 
-test('exposes exactly the five backend reputation dimensions in order', () => {
+test('exposes exactly the six backend reputation dimensions in order', () => {
   assert.deepEqual(
     REPUTATION_DIMENSIONS.map((d) => d.key),
-    ['completionRate', 'responseSpeed', 'accuracy', 'praise', 'activity'],
+    ['completionRate', 'responseSpeed', 'accuracy', 'praise', 'activity', 'compliance'],
   )
   REPUTATION_DIMENSIONS.forEach((d) => assert.ok(d.label && typeof d.label === 'string'))
 })
 
 // ================================================================
-// 雷达几何：五轴从正上方起、顺时针每 72°
+// 雷达几何：六轴从正上方起、顺时针每 60°
 // ================================================================
 
-test('axisAngle starts pointing straight up and steps 72° clockwise', () => {
+test('axisAngle starts pointing straight up and steps 60° clockwise', () => {
   approx(axisAngle(0), -Math.PI / 2)
-  approx(axisAngle(1), -Math.PI / 2 + (2 * Math.PI) / 5)
-  approx(axisAngle(5), -Math.PI / 2 + 2 * Math.PI)
+  approx(axisAngle(1), -Math.PI / 2 + (2 * Math.PI) / 6)
+  approx(axisAngle(6), -Math.PI / 2 + 2 * Math.PI)
 })
 
 test('radarPoint at full score on the first axis lands straight above center', () => {
@@ -61,9 +61,9 @@ test('radarPoint clamps out-of-range values into 0-100', () => {
 })
 
 test('radarPolygon renders one rounded x,y pair per value', () => {
-  const pts = radarPolygon([100, 0, 0, 0, 0], { radius: 100, cx: 100, cy: 100 })
+  const pts = radarPolygon([100, 0, 0, 0, 0, 0], { radius: 100, cx: 100, cy: 100 })
   const pairs = pts.trim().split(/\s+/)
-  assert.equal(pairs.length, 5)
+  assert.equal(pairs.length, 6)
   assert.equal(pairs[0], '100,0')
 })
 
@@ -71,7 +71,7 @@ test('radarPolygon renders one rounded x,y pair per value', () => {
 // VO → 有序取值 / 综合分 / 评级
 // ================================================================
 
-test('reputationValues pulls the five dimensions in canonical order', () => {
+test('reputationValues pulls the six dimensions in canonical order', () => {
   const vo = {
     userId: 7,
     completionRate: 90,
@@ -79,19 +79,20 @@ test('reputationValues pulls the five dimensions in canonical order', () => {
     accuracy: 70,
     praise: 60,
     activity: 50,
+    compliance: 40,
     reviewCount: 4,
   }
-  assert.deepEqual(reputationValues(vo), [90, 80, 70, 60, 50])
+  assert.deepEqual(reputationValues(vo), [90, 80, 70, 60, 50, 40])
 })
 
 test('reputationValues defaults missing dimensions to 0', () => {
-  assert.deepEqual(reputationValues({}), [0, 0, 0, 0, 0])
-  assert.deepEqual(reputationValues(null), [0, 0, 0, 0, 0])
+  assert.deepEqual(reputationValues({}), [0, 0, 0, 0, 0, 0])
+  assert.deepEqual(reputationValues(null), [0, 0, 0, 0, 0, 0])
 })
 
-test('overallScore averages the five dimensions and rounds', () => {
-  assert.equal(overallScore({ completionRate: 90, responseSpeed: 80, accuracy: 70, praise: 60, activity: 50 }), 70)
-  assert.equal(overallScore({ completionRate: 100, responseSpeed: 100, accuracy: 100, praise: 100, activity: 99 }), 100)
+test('overallScore averages the six dimensions and rounds', () => {
+  assert.equal(overallScore({ completionRate: 90, responseSpeed: 80, accuracy: 70, praise: 60, activity: 50, compliance: 40 }), 65)
+  assert.equal(overallScore({ completionRate: 100, responseSpeed: 100, accuracy: 100, praise: 100, activity: 99, compliance: 100 }), 100)
   assert.equal(overallScore(null), 0)
 })
 

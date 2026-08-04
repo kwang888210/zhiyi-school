@@ -75,7 +75,7 @@ public class UserController {
         return Result.ok(userService.getRelationTags(viewerId, id));
     }
 
-    /** 信誉雷达五维分值（A6）：公开接口，供个人中心和卖家详情的雷达图渲染 */
+    /** 信誉雷达六维分值（A6）：公开接口，供个人中心和卖家详情的雷达图渲染 */
     @GetMapping("/{id}/reputation")
     public Result<ReputationVO> reputation(@PathVariable Long id) {
         return Result.ok(reputationService.compute(id));

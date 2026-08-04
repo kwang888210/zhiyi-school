@@ -14,6 +14,7 @@ USE zhiyi_campus;
 SET FOREIGN_KEY_CHECKS = 0;
 TRUNCATE TABLE exp_log;
 TRUNCATE TABLE violation_log;
+TRUNCATE TABLE reputation_penalty;
 TRUNCATE TABLE violation_report;
 TRUNCATE TABLE trade_review;
 TRUNCATE TABLE wallet_log;
@@ -29,6 +30,7 @@ ALTER TABLE trade_order AUTO_INCREMENT = 1;
 ALTER TABLE wallet_log AUTO_INCREMENT = 1;
 ALTER TABLE violation_report AUTO_INCREMENT = 1;
 ALTER TABLE violation_log AUTO_INCREMENT = 1;
+ALTER TABLE reputation_penalty AUTO_INCREMENT = 1;
 ALTER TABLE exp_log AUTO_INCREMENT = 1;
 ALTER TABLE chat_message AUTO_INCREMENT = 1;
 ALTER TABLE item_favorite AUTO_INCREMENT = 1;
@@ -433,9 +435,12 @@ VALUES (5, 10, '华为Mate60 Pro手机壳', '买错型号了，全新未使用�
 INSERT INTO violation_report (user_id, item_id, original_title, original_description, violation_type, violation_reason, ai_tags, status, ai_review_error)
 VALUES (2, 13, 'iPhone 15 Pro Max', '全新未拆封。', 'CONTENT_VIOLATION', '商品价格¥1.00与标题型号明显不符，疑似虚假价格', '["iPhone","苹果"]', 'PENDING', false);
 
--- 5.4 CONFIRMED：已确认(历史·seller1)——D4评价联动测试
+-- 5.4 CONFIRMED：已确认(历史·seller1)——D4独立信誉处罚测试
 INSERT INTO violation_report (user_id, item_id, original_title, original_description, violation_type, violation_reason, ai_tags, status, handler_id, handle_note, handled_at, ai_review_error)
 VALUES (2, NULL, '代写期末论文', '专业代写各科期末论文保证通过。', 'CONTENT_VIOLATION', '涉及代考代写学术不端服务', '["代写","论文"]', 'CONFIRMED', 1, '确认违规，已封禁用户', DATE_SUB(NOW(), INTERVAL 3 DAY), false);
+SET @confirmed_report_id = LAST_INSERT_ID();
+INSERT INTO reputation_penalty (report_id, user_id, admin_id, type, points, reason, status, created_at)
+VALUES (@confirmed_report_id, 2, 1, 'WARNING', 5, '发布代写论文信息。', 'ACTIVE', DATE_SUB(NOW(), INTERVAL 3 DAY));
 
 -- 5.5 DISMISSED：已驳回(历史·小李)
 INSERT INTO violation_report (user_id, item_id, original_title, original_description, violation_type, violation_reason, ai_tags, status, handler_id, handle_note, handled_at, ai_review_error)
@@ -463,7 +468,7 @@ INSERT INTO exp_log (user_id, delta, exp_after, level_after, reason) VALUES (6, 
 INSERT INTO exp_log (user_id, delta, exp_after, level_after, reason) VALUES (8, -100, 0, 1, '扣经验超过当前值边界测试');
 
 -- ============================================================
--- 8. 交易评价（A6/A7信誉 + D4评价联动）
+-- 8. 交易评价（A6/A7信誉；不承载系统信誉处罚）
 -- ============================================================
 
 -- 8.1 高分好评：小李→小王(order#2)
